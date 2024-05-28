@@ -1,5 +1,5 @@
-:py:mod:`motulator.model`
-=========================
+motulator.model
+===============
 
 .. py:module:: motulator.model
 
@@ -29,19 +29,16 @@
 
 Subpackages
 -----------
+
 .. toctree::
-   :titlesonly:
-   :maxdepth: 3
+   :maxdepth: 1
 
-   im/index.rst
-   sm/index.rst
+   /autoapi/motulator/model/im/index
+   /autoapi/motulator/model/sm/index
 
-
-Package Contents
-----------------
 
 Classes
-~~~~~~~
+-------
 
 .. autoapisummary::
 
@@ -51,22 +48,23 @@ Classes
    motulator.model.Inverter
    motulator.model.LCFilter
    motulator.model.CarrierComparison
-   motulator.model.Simulation
    motulator.model.Delay
-
+   motulator.model.Model
+   motulator.model.Simulation
 
 
 Functions
-~~~~~~~~~
+---------
 
 .. autoapisummary::
 
    motulator.model.zoh
 
 
+Package Contents
+----------------
 
 .. py:class:: Mechanics(J, tau_L_w=lambda w_M: 0 * w_M, tau_L_t=lambda t: 0 * t)
-
 
    
    Mechanics subsystem.
@@ -99,6 +97,7 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: f(t, w_M, tau_M)
 
       
@@ -131,6 +130,7 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: meas_speed()
 
       
@@ -157,6 +157,7 @@ Functions
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: meas_position()
 
@@ -188,8 +189,8 @@ Functions
 
 .. py:class:: MechanicsTwoMass(J_M, J_L, K_S, C_S, tau_L_w=None, tau_L_t=None)
 
-
    Bases: :py:obj:`Mechanics`
+
 
    
    Two-mass mechanics subsystem.
@@ -228,6 +229,7 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: f(t, w_M, w_L, theta_ML, tau_M)
 
       
@@ -264,6 +266,7 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: meas_load_speed()
 
       
@@ -290,6 +293,7 @@ Functions
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: meas_load_position()
 
@@ -321,8 +325,8 @@ Functions
 
 .. py:class:: FrequencyConverter(L, C, U_g, f_g)
 
-
    Bases: :py:obj:`Inverter`
+
 
    
    Frequency converter.
@@ -356,6 +360,7 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: grid_voltages(t)
 
       
@@ -384,6 +389,7 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: f(t, u_dc, i_L, i_dc)
 
       
@@ -398,7 +404,7 @@ Functions
       :param i_dc: Current to the inverter (A).
       :type i_dc: float
 
-      :returns: Time derivative of the state vector, [du_dc, di_L]
+      :returns: Time derivative of the state vector, [d_u_dc, d_i_L]
       :rtype: list, length 2
 
 
@@ -420,7 +426,6 @@ Functions
 
 
 .. py:class:: Inverter(u_dc)
-
 
    
    Inverter with constant DC-bus voltage and switching-cycle averaging.
@@ -444,8 +449,10 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: ac_voltage(q, u_dc)
       :staticmethod:
+
 
       
       Compute the AC-side voltage of a lossless inverter.
@@ -475,8 +482,10 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: dc_current(q, i_c)
       :staticmethod:
+
 
       
       Compute the DC-side current of a lossless inverter.
@@ -506,6 +515,7 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: meas_dc_voltage()
 
       
@@ -534,7 +544,6 @@ Functions
 
 .. py:class:: LCFilter(L, C, R=0)
 
-
    
    LC-filter model.
 
@@ -561,6 +570,7 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: f(i_cs, u_ss, u_cs, i_ss)
 
       
@@ -575,7 +585,7 @@ Functions
       :param i_ss: Stator current (A).
       :type i_ss: complex
 
-      :returns: Time derivative of the state vector, [di_cs, du_ss]
+      :returns: Time derivative of the state vector, [d_i_cs, d_u_ss]
       :rtype: complex list, length 2
 
 
@@ -594,6 +604,7 @@ Functions
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: meas_currents()
 
@@ -619,6 +630,7 @@ Functions
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: meas_voltages()
 
@@ -648,7 +660,6 @@ Functions
 
 
 .. py:class:: CarrierComparison(N=2**12, return_complex=True)
-
 
    
    Carrier comparison.
@@ -718,8 +729,207 @@ Functions
    ..
        !! processed by numpydoc !!
 
-.. py:class:: Simulation(mdl=None, ctrl=None)
+.. py:class:: Delay(length=1, elem=3)
 
+   
+   Computational delay modeled as a ring buffer.
+
+   :param length: Length of the buffer in samples. The default is 1.
+   :type length: int, optional
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: Model(pwm=None, delay=1)
+
+   Bases: :py:obj:`abc.ABC`
+
+
+   
+   Base class for continuous-time system models.
+
+   This base class is a template for a system model that interconnects the
+   subsystems and provides an interface to the solver.
+
+   :param pwm: Zero-order hold of duty ratios or carrier comparison. If None, the
+               default is `zoh`.
+   :type pwm: zoh | CarrierComparison, optional
+   :param delay: Amount of computational delays. The default is 1.
+   :type delay: int, optional
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:method:: get_initial_values()
+      :abstractmethod:
+
+
+      
+      Get the initial values.
+
+      :returns: **x0** -- Initial values of the state variables.
+      :rtype: complex list
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: set_initial_values(t0, x0)
+      :abstractmethod:
+
+
+      
+      Set the initial values.
+
+      :param t0: Initial time (s).
+      :type t0: float
+      :param x0: Initial values of the state variables.
+      :type x0: complex ndarray
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: f(t, x)
+      :abstractmethod:
+
+
+      
+      Compute the complete state derivative list for the solver.
+
+      :param t: Time (s).
+      :type t: float
+      :param x: State vector.
+      :type x: complex ndarray
+
+      :returns: State derivatives.
+      :rtype: complex list
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: save(sol)
+
+      
+      Save the solution.
+
+      :param sol: Solution from the solver.
+      :type sol: SimpleNamespace
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: post_process()
+
+      
+      Transform the lists to the ndarray format and post-process them.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: Simulation(mdl=None, ctrl=None)
 
    
    Simulation environment.
@@ -747,6 +957,7 @@ Functions
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: simulate(t_stop=1, max_step=np.inf)
 
       
@@ -779,6 +990,7 @@ Functions
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: save_mat(name='sim')
 
       
@@ -804,34 +1016,6 @@ Functions
       ..
           !! processed by numpydoc !!
 
-
-.. py:class:: Delay(length=1, elem=3)
-
-
-   
-   Computational delay.
-
-   This models the computational delay as a ring buffer.
-
-   :param length: Length of the buffer in samples. The default is 1.
-   :type length: int, optional
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   ..
-       !! processed by numpydoc !!
 
 .. py:function:: zoh(T_s, d_abc)
 

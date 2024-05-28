@@ -1,5 +1,5 @@
-:py:mod:`motulator.model.im`
-============================
+motulator.model.im
+==================
 
 .. py:module:: motulator.model.im
 
@@ -27,11 +27,8 @@
        !! processed by numpydoc !!
 
 
-Package Contents
-----------------
-
 Classes
-~~~~~~~
+-------
 
 .. autoapisummary::
 
@@ -44,12 +41,13 @@ Classes
    motulator.model.im.InductionMachineInvGamma
 
 
-
+Package Contents
+----------------
 
 .. py:class:: Drive(machine=None, mechanics=None, converter=None)
 
+   Bases: :py:obj:`motulator.model.Model`
 
-   Bases: :py:obj:`motulator.model._simulation.Model`
 
    
    Continuous-time model for an induction machine drive.
@@ -80,28 +78,6 @@ Classes
 
    ..
        !! processed by numpydoc !!
-   .. py:method:: clear()
-
-      
-      Clear the simulation data of the system model.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      ..
-          !! processed by numpydoc !!
 
    .. py:method:: get_initial_values()
 
@@ -127,6 +103,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: set_initial_values(t0, x0)
 
@@ -154,6 +131,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: f(t, x)
 
@@ -185,6 +163,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: save(sol)
 
       
@@ -207,6 +186,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: post_process()
 
@@ -234,8 +214,8 @@ Classes
 
 .. py:class:: DriveWithDiodeBridge(machine=None, mechanics=None, converter=None)
 
-
    Bases: :py:obj:`Drive`
+
 
    
    Induction machine drive equipped with a diode bridge.
@@ -267,28 +247,6 @@ Classes
 
    ..
        !! processed by numpydoc !!
-   .. py:method:: clear()
-
-      
-      Extend the base class.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      ..
-          !! processed by numpydoc !!
 
    .. py:method:: get_initial_values()
 
@@ -313,6 +271,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: set_initial_values(t0, x0)
 
       
@@ -335,6 +294,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: f(t, x)
 
@@ -359,6 +319,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: save(sol)
 
       
@@ -381,6 +342,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: post_process()
 
@@ -408,8 +370,8 @@ Classes
 
 .. py:class:: DriveTwoMassMechanics(machine=None, mechanics=None, converter=None)
 
-
    Bases: :py:obj:`Drive`
+
 
    
    Induction machine drive with two-mass mechanics.
@@ -437,28 +399,6 @@ Classes
 
    ..
        !! processed by numpydoc !!
-   .. py:method:: clear()
-
-      
-      Extend the base class.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      ..
-          !! processed by numpydoc !!
 
    .. py:method:: get_initial_values()
 
@@ -483,6 +423,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: set_initial_values(t0, x0)
 
       
@@ -505,6 +446,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: f(t, x)
 
@@ -529,6 +471,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: save(sol)
 
       
@@ -551,6 +494,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: post_process()
 
@@ -578,8 +522,8 @@ Classes
 
 .. py:class:: DriveWithLCFilter(machine=None, mechanics=None, converter=None, lc_filter=None)
 
-
    Bases: :py:obj:`Drive`
+
 
    
    Induction machine drive with an output LC filter.
@@ -609,28 +553,6 @@ Classes
 
    ..
        !! processed by numpydoc !!
-   .. py:method:: clear()
-
-      
-      Extend the base class.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      ..
-          !! processed by numpydoc !!
 
    .. py:method:: get_initial_values()
 
@@ -655,6 +577,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: set_initial_values(t0, x0)
 
       
@@ -677,6 +600,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: f(t, x)
 
@@ -701,6 +625,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: save(sol)
 
       
@@ -723,6 +648,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: post_process()
 
@@ -749,7 +675,6 @@ Classes
 
 
 .. py:class:: InductionMachine(n_p, R_s, R_r, L_ell, L_s)
-
 
    
    Γ-equivalent model of an induction machine.
@@ -797,6 +722,7 @@ Classes
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: currents(psi_ss, psi_rs)
 
       
@@ -826,6 +752,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: magnetic(psi_ss, psi_rs)
 
@@ -858,6 +785,7 @@ Classes
       ..
           !! processed by numpydoc !!
 
+
    .. py:method:: f(psi_ss, psi_rs, u_ss, w_M)
 
       
@@ -872,7 +800,7 @@ Classes
       :param w_M: Rotor angular speed (mechanical rad/s).
       :type w_M: float
 
-      :returns: * *complex list, length 2* -- Time derivative of the state vector, [dpsi_ss, dpsi_rs]
+      :returns: * *complex list, length 2* -- Time derivative of the state vector, [d_psi_ss, d_psi_rs]
                 * **i_ss** (*complex*) -- Stator current (A).
                 * **tau_M** (*float*) -- Electromagnetic torque (Nm).
 
@@ -899,6 +827,7 @@ Classes
 
       ..
           !! processed by numpydoc !!
+
 
    .. py:method:: meas_currents()
 
@@ -928,8 +857,8 @@ Classes
 
 .. py:class:: InductionMachineSaturated(n_p, R_s, R_r, L_ell, L_s)
 
-
    Bases: :py:obj:`InductionMachine`
+
 
    
    Γ-equivalent model of an induction machine model with main-flux saturation.
@@ -966,6 +895,7 @@ Classes
 
    ..
        !! processed by numpydoc !!
+
    .. py:method:: currents(psi_ss, psi_rs)
 
       
@@ -992,8 +922,8 @@ Classes
 
 .. py:class:: InductionMachineInvGamma(n_p, R_s, R_R, L_sgm, L_M)
 
-
    Bases: :py:obj:`InductionMachine`
+
 
    
    Inverse-Γ model of an induction machine.

@@ -1,5 +1,5 @@
-:py:mod:`motulator`
-===================
+motulator
+=========
 
 .. py:module:: motulator
 
@@ -10,7 +10,7 @@
 
    This software includes continuous-time simulation models for induction machines
    and synchronous machines. Furthermore, selected examples of discrete-time
-   control algorithms are also included as well as various utilities.
+   control algorithms are included.
 
 
 
@@ -32,30 +32,27 @@
 
 Subpackages
 -----------
+
 .. toctree::
-   :titlesonly:
-   :maxdepth: 3
+   :maxdepth: 1
 
-   control/index.rst
-   model/index.rst
+   /autoapi/motulator/control/index
+   /autoapi/motulator/model/index
 
-
-Package Contents
-----------------
 
 Classes
-~~~~~~~
+-------
 
 .. autoapisummary::
 
    motulator.BaseValues
+   motulator.NominalValues
    motulator.Sequence
    motulator.Step
 
 
-
 Functions
-~~~~~~~~~
+---------
 
 .. autoapisummary::
 
@@ -65,6 +62,8 @@ Functions
    motulator.plot_extra
 
 
+Package Contents
+----------------
 
 .. py:function:: abc2complex(u)
 
@@ -138,73 +137,106 @@ Functions
 
 .. py:class:: BaseValues
 
-
    
    Base values.
 
-   Base values are computed from the nominal values and the number of pole
-   pairs. They can be used, e.g., for scaling the plotted waveforms.
-
-   :param U_nom: Voltage (V, rms, line-line).
-   :type U_nom: float
-   :param I_nom: Current (A, rms).
-   :type I_nom: float
-   :param f_nom: Frequency (Hz).
-   :type f_nom: float
-   :param tau_nom: Torque (Nm).
-   :type tau_nom: float
-   :param P_nom: Power (W).
-   :type P_nom: float
+   :param u: Voltage (V, peak, line-neutral).
+   :type u: float
+   :param i: Current (A, peak).
+   :type i: float
+   :param w: Angular frequency (rad/s).
+   :type w: float
+   :param psi: Flux linkage (Vs).
+   :type psi: float
+   :param p: Power (W).
+   :type p: float
+   :param Z: Impedance (Ω).
+   :type Z: float
+   :param L: Inductance (H).
+   :type L: float
+   :param tau: Torque (Nm).
+   :type tau: float
    :param n_p: Number of pole pairs.
    :type n_p: int
 
-   .. attribute:: u
 
-      Base voltage (V, peak, line-neutral).
 
-      :type: float
 
-   .. attribute:: i
 
-      Base current (A, peak).
 
-      :type: float
 
-   .. attribute:: w
 
-      Base angular frequency (rad/s).
 
-      :type: float
 
-   .. attribute:: psi
 
-      Base flux linkage (Vs).
 
-      :type: float
 
-   .. attribute:: p
 
-      Base power (W).
 
-      :type: float
+   ..
+       !! processed by numpydoc !!
 
-   .. attribute:: Z
+   .. py:method:: from_nominal(nom, n_p)
+      :classmethod:
 
-      Base impedance (Ω).
 
-      :type: float
+      
+      Compute base values from nominal values.
 
-   .. attribute:: L
+      :param nom:
+                  Nominal values containing the following fields:
 
-      Base inductance (H).
+                      U : float
+                          Voltage (V, rms, line-line).
+                      I : float
+                          Current (A, rms).
+                      f : float
+                          Frequency (Hz).
+      :type nom: NominalValues
+      :param n_p: Number of pole pairs.
+      :type n_p: int
 
-      :type: float
+      :returns: Base values.
+      :rtype: BaseValues
 
-   .. attribute:: tau
+      .. rubric:: Notes
 
-      Base torque (Nm).
+      Notice that the nominal torque is larger than the base torque due to
+      the power factor and efficiency being less than unity.
 
-      :type: float
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+.. py:class:: NominalValues
+
+   
+   Nominal values.
+
+   :param U: Voltage (V, rms, line-line).
+   :type U: float
+   :param I: Current (A, rms).
+   :type I: float
+   :param f: Frequency (Hz).
+   :type f: float
+   :param P: Power (W).
+   :type P: float
+   :param tau: Torque (Nm).
+   :type tau: float
 
 
 
@@ -224,7 +256,6 @@ Functions
        !! processed by numpydoc !!
 
 .. py:class:: Sequence(times, values, periodic=False)
-
 
    
    Sequence generator.
@@ -257,7 +288,6 @@ Functions
        !! processed by numpydoc !!
 
 .. py:class:: Step(step_time, step_value, initial_value=0)
-
 
    
    Step function.

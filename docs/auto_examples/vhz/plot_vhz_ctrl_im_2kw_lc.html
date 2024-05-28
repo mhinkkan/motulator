@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 
 
@@ -7,9 +6,9 @@
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>2.2-kW induction motor, LC filter &#8212; motulator 0.2.0 documentation</title>
+    <title>2.2-kW induction motor, LC filter &#8212; motulator 0.3.0beta documentation</title>
   
   
   
@@ -29,25 +28,25 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.1.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.1.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=61a4c737" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=5b4479735964841361fd" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=5b4479735964841361fd" />
   <script src="../../_static/vendor/fontawesome/6.1.2/js/all.min.js?digest=5b4479735964841361fd"></script>
 
-    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-    <script src="../../_static/doctools.js"></script>
-    <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="../../_static/clipboard.min.js"></script>
-    <script src="../../_static/copybutton.js"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=77c998d7"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/vhz/plot_vhz_ctrl_im_2kw_lc';</script>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -136,7 +135,7 @@
   
   
   
-    <p class="title logo__title">motulator 0.2.0 documentation</p>
+    <p class="title logo__title">motulator 0.3.0beta documentation</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -146,14 +145,14 @@
 <li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../autoapi/motulator/index.html">API Reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../autoapi/motulator/control/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.control</span></code></a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-2"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/control/im/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.control.im</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/control/sm/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.control.sm</span></code></a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../autoapi/motulator/control/index.html">motulator.control</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-2"><i class="fa-solid fa-chevron-down"></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/control/im/index.html">motulator.control.im</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/control/sm/index.html">motulator.control.sm</a></li>
 </ul>
 </li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../../autoapi/motulator/model/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.model</span></code></a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-3"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/model/im/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.model.im</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/model/sm/index.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">motulator.model.sm</span></code></a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../autoapi/motulator/model/index.html">motulator.model</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-3"><i class="fa-solid fa-chevron-down"></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/model/im/index.html">motulator.model.im</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../autoapi/motulator/model/sm/index.html">motulator.model.sm</a></li>
 </ul>
 </li>
 </ul>
@@ -176,9 +175,9 @@
 </ul>
 </li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">Examples</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-5"><i class="fa-solid fa-chevron-down"></i></label><ul class="current">
-<li class="toctree-l2 has-children"><a class="reference internal" href="../vector/index.html">Vector Control</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-6"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_pmsm_2kw.html">2.2-kW PMSM</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../vector/index.html">Current-Vector Control</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-6"><i class="fa-solid fa-chevron-down"></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_pmsm_2kw_diode.html">2.2-kW PMSM, diode bridge</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_pmsm_2kw.html">2.2-kW PMSM</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_syrm_7kw.html">6.7-kW SyRM</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_pmsyrm_thor.html">5-kW PM-SyRM</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../vector/plot_vector_ctrl_im_2kw.html">2.2-kW induction motor, saturated</a></li>
@@ -385,16 +384,15 @@ to download the full example code.</p>
 <span id="sphx-glr-auto-examples-vhz-plot-vhz-ctrl-im-2kw-lc-py"></span><h1>2.2-kW induction motor, LC filter<a class="headerlink" href="#kw-induction-motor-lc-filter" title="Permalink to this heading">#</a></h1>
 <p>This example simulates open-loop V/Hz control of a 2.2-kW induction machine
 drive equipped with an LC filter.</p>
-<p>Imports.</p>
 <div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 <span class="kn">from</span> <span class="nn">motulator</span> <span class="kn">import</span> <span class="n">model</span><span class="p">,</span> <span class="n">control</span>
-<span class="kn">from</span> <span class="nn">motulator</span> <span class="kn">import</span> <span class="n">BaseValues</span><span class="p">,</span> <span class="n">plot</span>
+<span class="kn">from</span> <span class="nn">motulator</span> <span class="kn">import</span> <span class="n">BaseValues</span><span class="p">,</span> <span class="n">NominalValues</span><span class="p">,</span> <span class="n">plot</span>
 </pre></div>
 </div>
 <p>Compute base values based on the nominal values (just for figures).</p>
-<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">base</span> <span class="o">=</span> <span class="n">BaseValues</span><span class="p">(</span>
-    <span class="n">U_nom</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">I_nom</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">f_nom</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">tau_nom</span><span class="o">=</span><span class="mf">14.6</span><span class="p">,</span> <span class="n">P_nom</span><span class="o">=</span><span class="mf">2.2e3</span><span class="p">,</span> <span class="n">n_p</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">nom</span> <span class="o">=</span> <span class="n">NominalValues</span><span class="p">(</span><span class="n">U</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">I</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">f</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">P</span><span class="o">=</span><span class="mf">2.2e3</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="mf">14.6</span><span class="p">)</span>
+<span class="n">base</span> <span class="o">=</span> <span class="n">BaseValues</span><span class="o">.</span><span class="n">from_nominal</span><span class="p">(</span><span class="n">nom</span><span class="p">,</span> <span class="n">n_p</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Create the system model. The filter parameters correspond to <a class="footnote-reference brackets" href="#sal2006" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>.</p>
@@ -410,15 +408,15 @@ drive equipped with an LC filter.</p>
 <p>Control system (parametrized as open-loop V/Hz control).</p>
 <div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Inverse-Γ model parameter estimates</span>
 <span class="n">par</span> <span class="o">=</span> <span class="n">control</span><span class="o">.</span><span class="n">im</span><span class="o">.</span><span class="n">ModelPars</span><span class="p">(</span><span class="n">R_s</span><span class="o">=</span><span class="mi">0</span><span class="o">*</span><span class="mf">3.7</span><span class="p">,</span> <span class="n">R_R</span><span class="o">=</span><span class="mi">0</span><span class="o">*</span><span class="mf">2.1</span><span class="p">,</span> <span class="n">L_sgm</span><span class="o">=</span><span class="mf">.021</span><span class="p">,</span> <span class="n">L_M</span><span class="o">=</span><span class="mf">.224</span><span class="p">)</span>
-<span class="n">ctrl</span> <span class="o">=</span> <span class="n">control</span><span class="o">.</span><span class="n">im</span><span class="o">.</span><span class="n">VHzCtrl</span><span class="p">(</span><span class="mf">250e-6</span><span class="p">,</span> <span class="n">par</span><span class="p">,</span> <span class="n">psi_s_nom</span><span class="o">=</span><span class="n">base</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span> <span class="n">k_u</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">k_w</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-<span class="n">ctrl</span><span class="o">.</span><span class="n">rate_limiter</span> <span class="o">=</span> <span class="n">control</span><span class="o">.</span><span class="n">RateLimiter</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">ctrl</span> <span class="o">=</span> <span class="n">control</span><span class="o">.</span><span class="n">im</span><span class="o">.</span><span class="n">VHzCtrl</span><span class="p">(</span>
+    <span class="n">control</span><span class="o">.</span><span class="n">im</span><span class="o">.</span><span class="n">VHzCtrlCfg</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">nom_psi_s</span><span class="o">=</span><span class="n">base</span><span class="o">.</span><span class="n">psi</span><span class="p">,</span> <span class="n">k_u</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">k_w</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
 </pre></div>
 </div>
 <p>Set the speed reference and the external load torque.</p>
-<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">ctrl</span><span class="o">.</span><span class="n">w_m_ref</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">(</span><span class="n">t</span> <span class="o">&gt;</span> <span class="mf">.2</span><span class="p">)</span><span class="o">*</span><span class="n">base</span><span class="o">.</span><span class="n">w</span>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">ctrl</span><span class="o">.</span><span class="n">ref</span><span class="o">.</span><span class="n">w_m</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">(</span><span class="n">t</span> <span class="o">&gt;</span> <span class="mf">.2</span><span class="p">)</span><span class="o">*</span><span class="n">base</span><span class="o">.</span><span class="n">w</span>
 
 <span class="c1"># Quadratic load torque profile (corresponding to pumps and fans)</span>
-<span class="n">k</span> <span class="o">=</span> <span class="mf">1.1</span><span class="o">*</span><span class="n">base</span><span class="o">.</span><span class="n">tau_nom</span><span class="o">/</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">w</span><span class="o">/</span><span class="n">base</span><span class="o">.</span><span class="n">n_p</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+<span class="n">k</span> <span class="o">=</span> <span class="mf">1.1</span><span class="o">*</span><span class="n">nom</span><span class="o">.</span><span class="n">tau</span><span class="o">/</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">w</span><span class="o">/</span><span class="n">base</span><span class="o">.</span><span class="n">n_p</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
 <span class="n">mdl</span><span class="o">.</span><span class="n">mechanics</span><span class="o">.</span><span class="n">tau_L_w</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">w_M</span><span class="p">:</span> <span class="n">k</span><span class="o">*</span><span class="n">w_M</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">w_M</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -457,14 +455,14 @@ drive equipped with an LC filter.</p>
 </div>
 <img src="../../_images/sphx_glr_plot_vhz_ctrl_im_2kw_lc_002.png" srcset="../../_images/sphx_glr_plot_vhz_ctrl_im_2kw_lc_002.png" alt="plot vhz ctrl im 2kw lc" class = "sphx-glr-single-img"/><p class="rubric">References</p>
 <aside class="footnote-list brackets">
-<aside class="footnote brackets" id="sal2006" role="note">
+<aside class="footnote brackets" id="sal2006" role="doc-footnote">
 <span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
 <p>Salomäki, Hinkkanen, Luomi, “Sensorless control of induction
 motor drives equipped with inverter output filter,” IEEE Trans. Ind.
 Electron., 2006, <a class="reference external" href="https://doi.org/10.1109/TIE.2006.878314">https://doi.org/10.1109/TIE.2006.878314</a></p>
 </aside>
 </aside>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 7.881 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 8.049 seconds)</p>
 <div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-vhz-plot-vhz-ctrl-im-2kw-lc-py">
 <div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/8d71d9beddebfc5186f11a98c9c29e77/plot_vhz_ctrl_im_2kw_lc.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_vhz_ctrl_im_2kw_lc.ipynb</span></code></a></p>

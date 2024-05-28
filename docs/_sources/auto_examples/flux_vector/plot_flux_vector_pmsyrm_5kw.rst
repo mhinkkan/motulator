@@ -29,11 +29,7 @@ is plotted together with the model predictions. Notice that the control system
 used in this example does not consider the saturation, only the system model 
 does.
 
-.. GENERATED FROM PYTHON SOURCE LINES 16-17
-
-Imports.
-
-.. GENERATED FROM PYTHON SOURCE LINES 17-27
+.. GENERATED FROM PYTHON SOURCE LINES 15-25
 
 .. code-block:: Python
 
@@ -45,7 +41,7 @@ Imports.
     from scipy.optimize import minimize_scalar
     import matplotlib.pyplot as plt
     from motulator import model, control
-    from motulator import BaseValues, Sequence, plot
+    from motulator import BaseValues, NominalValues, Sequence, plot
 
 
 
@@ -54,17 +50,17 @@ Imports.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 28-29
+.. GENERATED FROM PYTHON SOURCE LINES 26-27
 
 Compute base values based on the nominal values (just for figures).
 
-.. GENERATED FROM PYTHON SOURCE LINES 29-33
+.. GENERATED FROM PYTHON SOURCE LINES 27-31
 
 .. code-block:: Python
 
 
-    base = BaseValues(
-        U_nom=370, I_nom=8.8, f_nom=60, tau_nom=29.2, P_nom=5.5e3, n_p=2)
+    nom = NominalValues(U=370, I=8.8, f=60, P=5.5e3, tau=29.2)
+    base = BaseValues.from_nominal(nom, n_p=2)
 
 
 
@@ -73,12 +69,12 @@ Compute base values based on the nominal values (just for figures).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 34-36
+.. GENERATED FROM PYTHON SOURCE LINES 32-34
 
 Create a saturation model, which will be used in the machine model in the
 following simulations.
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-91
+.. GENERATED FROM PYTHON SOURCE LINES 34-89
 
 .. code-block:: Python
 
@@ -144,13 +140,13 @@ following simulations.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 92-95
+.. GENERATED FROM PYTHON SOURCE LINES 90-93
 
 Plot the saturation model (surfaces) and the measured flux map data (points).
 Notice that the simulation uses the the algebraic model only. The
 measured data is shown only for comparison.
 
-.. GENERATED FROM PYTHON SOURCE LINES 95-135
+.. GENERATED FROM PYTHON SOURCE LINES 93-133
 
 .. code-block:: Python
 
@@ -206,12 +202,12 @@ measured data is shown only for comparison.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 136-138
+.. GENERATED FROM PYTHON SOURCE LINES 134-136
 
 Solve the PM flux linkage for the initial value of the stator flux linkage,
 which is needed in the machine model below.
 
-.. GENERATED FROM PYTHON SOURCE LINES 138-143
+.. GENERATED FROM PYTHON SOURCE LINES 136-141
 
 .. code-block:: Python
 
@@ -227,11 +223,11 @@ which is needed in the machine model below.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 144-145
+.. GENERATED FROM PYTHON SOURCE LINES 142-143
 
 Configure the system model.
 
-.. GENERATED FROM PYTHON SOURCE LINES 145-156
+.. GENERATED FROM PYTHON SOURCE LINES 143-154
 
 .. code-block:: Python
 
@@ -253,11 +249,11 @@ Configure the system model.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 157-158
+.. GENERATED FROM PYTHON SOURCE LINES 155-156
 
 Configure the control system.
 
-.. GENERATED FROM PYTHON SOURCE LINES 158-169
+.. GENERATED FROM PYTHON SOURCE LINES 156-168
 
 .. code-block:: Python
 
@@ -266,11 +262,12 @@ Configure the control system.
     par = control.sm.ModelPars(
         n_p=2, R_s=.63, L_d=18e-3, L_q=110e-3, psi_f=.47, J=.015)
     # Limit the maximum reference flux to the base value
-    ref = control.sm.FluxTorqueReferencePars(
-        par, i_s_max=2*base.i, k_u=1, psi_s_max=base.psi)
-    ctrl = control.sm.FluxVectorCtrl(par, ref, sensorless=True)
+    cfg = control.sm.FluxTorqueReferenceCfg(
+        par, max_i_s=2*base.i, k_u=1, max_psi_s=base.psi)
+    ctrl = control.sm.FluxVectorCtrl(par, cfg, sensorless=True)
     # Select a lower speed-estimation bandwidth to mitigate the saturation effects
-    ctrl.observer = control.sm.Observer(par, alpha_o=2*np.pi*40, sensorless=True)
+    ctrl.observer = control.sm.Observer(
+        control.sm.ObserverCfg(par, alpha_o=2*np.pi*40, sensorless=True))
 
 
 
@@ -279,22 +276,22 @@ Configure the control system.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 170-171
+.. GENERATED FROM PYTHON SOURCE LINES 169-170
 
 Set the speed reference and the external load torque.
 
-.. GENERATED FROM PYTHON SOURCE LINES 171-181
+.. GENERATED FROM PYTHON SOURCE LINES 170-180
 
 .. code-block:: Python
 
 
-    # Speed reference
+    # Speed reference (electrical rad/s)
     times = np.array([0, .125, .25, .375, .5, .625, .75, .875, 1])*4
     values = np.array([0, 0, 1, 1, 0, -1, -1, 0, 0])*base.w
-    ctrl.w_m_ref = Sequence(times, values)
+    ctrl.ref.w_m = Sequence(times, values)
     # External load torque
     times = np.array([0, .125, .125, .875, .875, 1])*4
-    values = np.array([0, 0, 1, 1, 0, 0])*base.tau_nom
+    values = np.array([0, 0, 1, 1, 0, 0])*nom.tau
     mdl.mechanics.tau_L_t = Sequence(times, values)
 
 
@@ -304,11 +301,11 @@ Set the speed reference and the external load torque.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 182-183
+.. GENERATED FROM PYTHON SOURCE LINES 181-182
 
 Create the simulation object and simulate it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 183-187
+.. GENERATED FROM PYTHON SOURCE LINES 182-186
 
 .. code-block:: Python
 
@@ -323,11 +320,11 @@ Create the simulation object and simulate it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 188-189
+.. GENERATED FROM PYTHON SOURCE LINES 187-188
 
 Plot results in per-unit values.
 
-.. GENERATED FROM PYTHON SOURCE LINES 189-192
+.. GENERATED FROM PYTHON SOURCE LINES 188-191
 
 .. code-block:: Python
 
@@ -346,7 +343,7 @@ Plot results in per-unit values.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 193-198
+.. GENERATED FROM PYTHON SOURCE LINES 192-197
 
 .. rubric:: References
 
@@ -357,7 +354,7 @@ Plot results in per-unit values.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 11.525 seconds)
+   **Total running time of the script:** (0 minutes 11.796 seconds)
 
 
 .. _sphx_glr_download_auto_examples_flux_vector_plot_flux_vector_pmsyrm_5kw.py:

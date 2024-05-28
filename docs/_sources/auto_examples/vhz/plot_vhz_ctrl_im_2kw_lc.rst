@@ -24,11 +24,7 @@
 This example simulates open-loop V/Hz control of a 2.2-kW induction machine
 drive equipped with an LC filter. 
 
-.. GENERATED FROM PYTHON SOURCE LINES 10-11
-
-Imports.
-
-.. GENERATED FROM PYTHON SOURCE LINES 11-17
+.. GENERATED FROM PYTHON SOURCE LINES 10-16
 
 .. code-block:: Python
 
@@ -36,7 +32,7 @@ Imports.
     import numpy as np
     import matplotlib.pyplot as plt
     from motulator import model, control
-    from motulator import BaseValues, plot
+    from motulator import BaseValues, NominalValues, plot
 
 
 
@@ -45,17 +41,17 @@ Imports.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 18-19
+.. GENERATED FROM PYTHON SOURCE LINES 17-18
 
 Compute base values based on the nominal values (just for figures).
 
-.. GENERATED FROM PYTHON SOURCE LINES 19-23
+.. GENERATED FROM PYTHON SOURCE LINES 18-22
 
 .. code-block:: Python
 
 
-    base = BaseValues(
-        U_nom=400, I_nom=5, f_nom=50, tau_nom=14.6, P_nom=2.2e3, n_p=2)
+    nom = NominalValues(U=400, I=5, f=50, P=2.2e3, tau=14.6)
+    base = BaseValues.from_nominal(nom, n_p=2)
 
 
 
@@ -64,11 +60,11 @@ Compute base values based on the nominal values (just for figures).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 24-25
+.. GENERATED FROM PYTHON SOURCE LINES 23-24
 
 Create the system model. The filter parameters correspond to [#Sal2006]_.
 
-.. GENERATED FROM PYTHON SOURCE LINES 25-34
+.. GENERATED FROM PYTHON SOURCE LINES 24-33
 
 .. code-block:: Python
 
@@ -88,19 +84,19 @@ Create the system model. The filter parameters correspond to [#Sal2006]_.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 35-36
+.. GENERATED FROM PYTHON SOURCE LINES 34-35
 
 Control system (parametrized as open-loop V/Hz control).
 
-.. GENERATED FROM PYTHON SOURCE LINES 36-42
+.. GENERATED FROM PYTHON SOURCE LINES 35-41
 
 .. code-block:: Python
 
 
     # Inverse-Γ model parameter estimates
     par = control.im.ModelPars(R_s=0*3.7, R_R=0*2.1, L_sgm=.021, L_M=.224)
-    ctrl = control.im.VHzCtrl(250e-6, par, psi_s_nom=base.psi, k_u=0, k_w=0)
-    ctrl.rate_limiter = control.RateLimiter(2*np.pi*120)
+    ctrl = control.im.VHzCtrl(
+        control.im.VHzCtrlCfg(par, nom_psi_s=base.psi, k_u=0, k_w=0))
 
 
 
@@ -109,19 +105,19 @@ Control system (parametrized as open-loop V/Hz control).
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 43-44
+.. GENERATED FROM PYTHON SOURCE LINES 42-43
 
 Set the speed reference and the external load torque.
 
-.. GENERATED FROM PYTHON SOURCE LINES 44-51
+.. GENERATED FROM PYTHON SOURCE LINES 43-50
 
 .. code-block:: Python
 
 
-    ctrl.w_m_ref = lambda t: (t > .2)*base.w
+    ctrl.ref.w_m = lambda t: (t > .2)*base.w
 
     # Quadratic load torque profile (corresponding to pumps and fans)
-    k = 1.1*base.tau_nom/(base.w/base.n_p)**2
+    k = 1.1*nom.tau/(base.w/base.n_p)**2
     mdl.mechanics.tau_L_w = lambda w_M: k*w_M**2*np.sign(w_M)
 
 
@@ -131,11 +127,11 @@ Set the speed reference and the external load torque.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 52-53
+.. GENERATED FROM PYTHON SOURCE LINES 51-52
 
 Create the simulation object and simulate it.
 
-.. GENERATED FROM PYTHON SOURCE LINES 53-57
+.. GENERATED FROM PYTHON SOURCE LINES 52-56
 
 .. code-block:: Python
 
@@ -150,11 +146,11 @@ Create the simulation object and simulate it.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 58-59
+.. GENERATED FROM PYTHON SOURCE LINES 57-58
 
 Plot results in per-unit values.
 
-.. GENERATED FROM PYTHON SOURCE LINES 59-63
+.. GENERATED FROM PYTHON SOURCE LINES 58-62
 
 .. code-block:: Python
 
@@ -174,11 +170,11 @@ Plot results in per-unit values.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 64-65
+.. GENERATED FROM PYTHON SOURCE LINES 63-64
 
 Plot additional waveforms.
 
-.. GENERATED FROM PYTHON SOURCE LINES 65-87
+.. GENERATED FROM PYTHON SOURCE LINES 64-86
 
 .. code-block:: Python
 
@@ -216,7 +212,7 @@ Plot additional waveforms.
 
 
 
-.. GENERATED FROM PYTHON SOURCE LINES 88-93
+.. GENERATED FROM PYTHON SOURCE LINES 87-92
 
 .. rubric:: References
 
@@ -227,7 +223,7 @@ Plot additional waveforms.
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** (0 minutes 7.881 seconds)
+   **Total running time of the script:** (0 minutes 8.049 seconds)
 
 
 .. _sphx_glr_download_auto_examples_vhz_plot_vhz_ctrl_im_2kw_lc.py:
