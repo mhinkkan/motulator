@@ -97,7 +97,7 @@ class Simulation:
         self.mdl = mdl
         self.ctrl = ctrl
 
-    def simulate(self, t_stop: float = 1.0) -> SimulationResults:
+    def simulate(self, t_stop: float = 1.0, N_eval: int = 0) -> SimulationResults:
         """
         Solve continuous-time system model and call control system.
 
@@ -105,6 +105,10 @@ class Simulation:
         ----------
         t_stop : float, optional
             Simulation stop time, defaults to 1.
+        N_eval : int | None, optional
+            Number of evenly spaced data points to be returned by the solver for each
+            sampling period. Defaults to 0, in which case the number and spacing of
+            points is selected by the solver.
 
         """
         try:
@@ -126,7 +130,7 @@ class Simulation:
                     progress_bar.n = min(self.mdl.t0, t_stop)
                     progress_bar.refresh()
 
-            self._run_simulation_loop(t_stop, update_progress)
+            self._run_simulation_loop(t_stop, update_progress, N_eval)
 
             if progress_bar is not None:
                 progress_bar.n = t_stop
@@ -148,7 +152,7 @@ class Simulation:
 
     @np.errstate(invalid="raise")
     def _run_simulation_loop(
-        self, t_stop: float, update_progress: Callable[[], None]
+        self, t_stop: float, update_progress: Callable[[], None], N_eval: int
     ) -> None:
         """Run the main simulation loop."""
         while self.mdl.t0 <= t_stop:
@@ -165,9 +169,21 @@ class Simulation:
                     self.mdl.interconnect()
                     state0 = self.mdl.get_initial_values()
 
-                    # Integrate over t_span
+                    # Set the integration time span
                     t_span = (self.mdl.t0, self.mdl.t0 + t_step)
-                    sol = solve_ivp(self.mdl.rhs, t_span, state0, **self.cfg.solver)
+
+                    # Create array of evaluation times if N_eval is given
+                    if N_eval != 0:
+                        t_eval = np.linspace(
+                            t_span[0], t_span[1], N_eval, endpoint=False
+                        )
+                    else:
+                        t_eval = None
+
+                    # Integrate over t_span
+                    sol = solve_ivp(
+                        self.mdl.rhs, t_span, state0, t_eval=t_eval, **self.cfg.solver
+                    )
 
                     # Set the new initial time and save the solution
                     self.mdl.t0 = t_span[-1]

@@ -6,7 +6,10 @@ from motulator.common.model._converter import (
     VoltageSourceConverter,
 )
 from motulator.grid.model._ac_filter import LCLFilter, LFilter
-from motulator.grid.model._ac_source import ThreePhaseSource
+from motulator.grid.model._ac_source import (
+    ThreePhaseSource,
+    ThreePhaseSourceWithSignalInjection,
+)
 
 
 # %%
@@ -20,7 +23,7 @@ class GridConverterSystem(Model):
         Converter model.
     ac_filter : LFilter | LCLFilter
         AC filter model.
-    ac_source : ThreePhaseSource
+    ac_source : ThreePhaseSource | ThreePhaseSourceWithSignalInjection
         Three-phase voltage source.
     pwm : bool, optional
         Enable PWM model, defaults to False.
@@ -33,7 +36,7 @@ class GridConverterSystem(Model):
         self,
         converter: VoltageSourceConverter | CapacitiveDCBusConverter,
         ac_filter: LFilter | LCLFilter,
-        ac_source: ThreePhaseSource,
+        ac_source: ThreePhaseSource | ThreePhaseSourceWithSignalInjection,
         pwm: bool = False,
         delay: int = 1,
     ) -> None:

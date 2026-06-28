@@ -7,6 +7,7 @@ from motulator.grid.model._converter_system import (
     LCLFilter,
     LFilter,
     ThreePhaseSource,
+    ThreePhaseSourceWithSignalInjection,
     VoltageSourceConverter,
 )
 
@@ -15,6 +16,7 @@ __all__ = [
     "LCLFilter",
     "LFilter",
     "ThreePhaseSource",
+    "ThreePhaseSourceWithSignalInjection",
     "Simulation",
     "VoltageSourceConverter",
     "CapacitiveDCBusConverter",

@@ -346,6 +346,7 @@ sphinx_gallery_conf = {
             "../../examples/drive/signal_inj",
             "../../examples/grid/grid_following",
             "../../examples/grid/grid_forming",
+            "../../examples/grid/identification",
         ]
     ),
 }
