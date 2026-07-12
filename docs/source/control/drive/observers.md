@@ -335,13 +335,20 @@ where $\zeta_\infty$ is the desired damping ratio at high speeds. At zero speed,
 
 ### Speed Observer
 
-The speed observer is implemented in the {class}`motulator.drive.control.sm.SpeedObserver` class. The flux observer {eq}`sm_obs` is extended with the speed observer in the {class}`motulator.drive.control.sm.SpeedFluxObserver` class. The estimation error signal $\varepsilon$ for the mechanical rotor position is extracted as
+The speed observer is implemented in the {class}`motulator.drive.control.sm.SpeedObserver` class. The flux observer {eq}`sm_obs` is extended with the speed observer in the {class}`motulator.drive.control.sm.SpeedFluxObserver` class. The estimation error signal $\varepsilon$ for the mechanical rotor position is extracted as for sensorless
 
 ```{math}
 ---
-label: sm_obs_eps
+label: sm_obs_eps_sensorless
 ---
     \varepsilon = -\frac{1}{\np}\IM\left\{ \frac{\eo}{\hatpsiaux} \right\}
+```
+If mechanical angle is known, the estimation error signal is then
+```{math}
+---
+label: sm_obs_eps_sensored
+---
+    \varepsilon = \thetam - \hatthetam$
 ```
 
 Considering the rotor speed to be a quasi-constant disturbance, the speed can be estimated as {cite}`Hin2018`

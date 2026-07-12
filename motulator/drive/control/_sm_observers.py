@@ -131,11 +131,12 @@ class FluxObserver:
         if self.sensorless or theta_M_meas is None:
             out.theta_c = out.theta_m = self.theta_m
         else:
-            out.theta_c = out.theta_m = par.n_p * theta_M_meas
+            out.theta_c = par.n_p * theta_M_meas
+            out.theta_m = self.theta_m
 
         # Current and voltage vectors in (estimated) rotor coordinates
-        out.i_s = exp(-1j * out.theta_m) * i_s_ab
-        out.u_s = exp(-1j * out.theta_m) * u_s_ab
+        out.i_s = exp(-1j * out.theta_c) * i_s_ab
+        out.u_s = exp(-1j * out.theta_c) * u_s_ab
 
         # Auxiliary flux
         out.psi_a = complex(par.aux_flux(out.i_s))
@@ -147,15 +148,18 @@ class FluxObserver:
         if self.sensorless:
             ratio = out.e_o / out.psi_a if out.psi_a != 0.0 else 0.0
             # Error signals for the mechanical rotor angle and PM flux estimation
-            out.eps = -ratio.imag / par.n_p
+            err_elec = -ratio.imag
+            out.eps = err_elec / par.n_p
             out.eps_f = -ratio.real
 
-            # Angular speed of the coordinate system
-            out.w_c = out.w_m - self.k_theta * ratio.imag
         else:
-            # Sensored mode assumes measured rotor coordinates
-            out.eps = out.eps_f = 0
-            out.w_c = out.w_m
+            # Sensored mode assumes measured rotor angle, but speed is estimated
+            err_elec = wrap(par.n_p * theta_M_meas - out.theta_m)
+            out.eps = err_elec / par.n_p
+            out.eps_f = 0
+        
+        # Angular speed of the coordinate system
+        out.w_c = out.w_m + self.k_theta * err_elec
 
         # Torque estimate
         out.tau_M = 1.5 * par.n_p * (out.i_s * out.psi_s.conjugate()).imag
@@ -204,6 +208,8 @@ class SpeedFluxObserver:
     J : float, optional
         Inertia of the mechanical system (kgm²). Defaults to None, which means the
         mechanical system model is not used.
+    sensorless : bool
+        If True, sensorless mode is used.
 
     """
 
@@ -214,6 +220,7 @@ class SpeedFluxObserver:
         k_o: Callable[[float], float],
         k_f: Callable[[float], float],
         J: float | None = None,
+        sensorless: bool=True,        
     ) -> None:
         # Configure observer gains for critically damped dynamics
         if J is None:
@@ -224,21 +231,21 @@ class SpeedFluxObserver:
             k_theta = 3 * alpha_o
             k_w = 3 * alpha_o**2
             k_tau = J * alpha_o**3
-
+            
         # Create component observers
         self.speed_observer = SpeedObserver(k_w, k_tau, J)
-        self.flux_observer = FluxObserver(par, k_theta, k_o, k_f, True)
+        self.flux_observer = FluxObserver(par, k_theta, k_o, k_f, sensorless)
 
     def compute_output(
         self,
         u_s_ab: complex,
         i_s_ab: complex,
-        w_M_meas: float | None = None,
+        # w_M_meas: float | None = None,
         theta_M_meas: float | None = None,
     ) -> ObserverOutputs:
         """Compute the feedback signals for the control system."""
         w_M, tau_L = self.speed_observer.compute_output()
-        out = self.flux_observer.compute_output(u_s_ab, i_s_ab, w_M)
+        out = self.flux_observer.compute_output(u_s_ab, i_s_ab, w_M, theta_M_meas)
         out.tau_L = tau_L
         return out
 
@@ -251,19 +258,20 @@ class SpeedFluxObserver:
 # %%
 def create_sensored_observer(
     par: SynchronousMachinePars | SaturatedSynchronousMachinePars,
-    k_theta: float = 2 * pi * 200,
+    alpha_o: float = 2 * pi * 100,
     k_o: Callable[[float], float] | None = None,
     k_f: Callable[[float], float] | None = None,
-) -> FluxObserver:
+    J: float | None = None,
+) -> SpeedFluxObserver:
     """
-    Create a flux observer for a drive equipped with a motion sensor.
+    Create a sensored flux observer for a drive equipped with a rotor angle sensor.
 
     Parameters
     ----------
     par : SynchronousMachinePars | SaturatedSynchronousMachinePars
         Machine model parameters.
-    k_theta : float, optional
-        Rotor-angle estimation gain (rad/s), defaults to 2*pi*200.
+    alpha_o : float, optional
+        Speed estimation pole (rad/s), defaults to 2*pi*100.
     k_o : Callable[[float], float], optional
         Observer gain as a function of the rotor angular speed, defaults to ``lambda
         w_m: 0.25*(R_s*(L_d + L_q)/(L_d*L_q) + 0.2*abs(w_m))`` if `sensorless` else
@@ -273,17 +281,21 @@ def create_sensored_observer(
         to zero, ``lambda w_m: 0``. A typical nonzero gain is of the form ``lambda w_m:
         max(k*(abs(w_m) - w_min), 0)``, i.e., zero below the speed `w_min` (rad/s) and
         linearly increasing above that with the slope `k` (Vs).
+    J : float, optional
+        Inertia of the mechanical system (kgm²). Defaults to None, which means the
+        mechanical system model is not used.
 
     Returns
     -------
-    FluxObserver
-        Flux observer for a sensored drive.
+    SpeedFluxObserver
+        Sensorless flux observer with speed estimation.
 
     """
+
     k_o = (lambda w_m: 2 * pi * 15) if k_o is None else k_o
     k_f = (lambda w_m: 0) if k_f is None else k_f
 
-    return FluxObserver(par, k_theta, k_o, k_f, False)
+    return SpeedFluxObserver(par, alpha_o, k_o, k_f, J, False)
 
 
 def create_sensorless_observer(
@@ -328,7 +340,60 @@ def create_sensorless_observer(
     k_o = (lambda w_m: sigma0 + 0.2 * abs(w_m)) if k_o is None else k_o
     k_f = (lambda w_m: 0) if k_f is None else k_f
 
-    return SpeedFluxObserver(par, alpha_o, k_o, k_f, J)
+    return SpeedFluxObserver(par, alpha_o, k_o, k_f, J, True)
+
+def create_speed_flux_observer(
+    par: SynchronousMachinePars | SaturatedSynchronousMachinePars,
+    alpha_o: float = 2 * pi * 100,
+    k_o: Callable[[float], float] | None = None,
+    k_f: Callable[[float], float] | None = None,
+    J: float | None = None,
+    sensorless: bool = True,
+) -> SpeedFluxObserver:
+    """
+    Create a flux observer with a speed estimation. If rotor angle measurement is 
+    available, the observer estimates the speed is based on the angle measurement, 
+    otherwise it is estimated based on the flux estimation error.
+
+    Parameters
+    ----------
+    par : SynchronousMachinePars | SaturatedSynchronousMachinePars
+        Machine model parameters.
+    alpha_o : float, optional
+        Speed estimation pole (rad/s), defaults to 2*pi*100.
+    k_o : Callable[[float], float], optional
+        Observer gain as a function of the rotor angular speed, defaults to ``lambda
+        w_m: 0.25*(R_s*(L_d + L_q)/(L_d*L_q) + 0.2*abs(w_m))`` if `sensorless` else
+        ``lambda w_m: 2*pi*15``.
+    k_f : Callable[[float], float], optional
+        PM-flux estimation gain (V) as a function of the rotor angular speed, defaults
+        to zero, ``lambda w_m: 0``. A typical nonzero gain is of the form ``lambda w_m:
+        max(k*(abs(w_m) - w_min), 0)``, i.e., zero below the speed `w_min` (rad/s) and
+        linearly increasing above that with the slope `k` (Vs).
+    J : float, optional
+        Inertia of the mechanical system (kgm²). Defaults to None, which means the
+        mechanical system model is not used.
+    sensorless : bool, default True
+        If True, sensorless mode is used, otherwise sensored mode is used.
+
+    Returns
+    -------
+    SpeedFluxObserver
+        Sensorless flux observer with speed estimation.
+
+    """
+    if sensorless:
+        # Poles at zero speed are located s = 0 and s = -2*sigma0
+        L_s0 = par.incr_ind_mat(0)
+        sigma0 = 0.25 * par.R_s * (1 / L_s0[0, 0] + 1 / L_s0[1, 1])
+
+        k_o = (lambda w_m: sigma0 + 0.2 * abs(w_m)) if k_o is None else k_o
+        k_f = (lambda w_m: 0) if k_f is None else k_f
+    else:
+        k_o = (lambda w_m: 2 * pi * 15) if k_o is None else k_o
+        k_f = (lambda w_m: 0) if k_f is None else k_f
+
+    return SpeedFluxObserver(par, alpha_o, k_o, k_f, J, sensorless)
 
 
 def create_vhz_observer(
