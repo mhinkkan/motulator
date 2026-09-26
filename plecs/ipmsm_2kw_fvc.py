@@ -25,7 +25,12 @@ from motulator.common.model import SolverCfg
 from motulator.drive import model
 
 sys.path.insert(0, str(Path(__file__).parent))
-from motulator_plecs import StepSignal, simulate_plecs, write_plecs_model  # noqa: E402
+from motulator_plecs import (  # noqa: E402
+    StepSignal,
+    sampled_step,
+    simulate_plecs,
+    write_plecs_model,
+)
 
 T_STOP = 1.2
 W_M_REF = StepSignal(time=0.1, after=50.0)  # Speed reference (rad/s)
@@ -60,11 +65,14 @@ def step(sig: StepSignal):
 if __name__ == "__main__":
     # Export the PLECS model (before simulating, since simulation changes the states)
     mdl, ctrl = build_system()
+    # Speed reference switching at the same sample as in motulator
+    T_s = cast(control.FluxVectorController, ctrl.vector_ctrl).cfg.T_s
+    w_M_ref = sampled_step(W_M_REF, T_s)
     path = write_plecs_model(
         Path(__file__).with_name("ipmsm_2kw_fvc.plecs"),
         mdl,
         ctrl,
-        W_M_REF,
+        w_M_ref,
         TAU_L,
         T_STOP,
         SPEED_CTRL,
@@ -76,7 +84,6 @@ if __name__ == "__main__":
     mdl.mechanics.set_external_load_torque(step(TAU_L))
     sim = model.Simulation(mdl, ctrl, cfg=SolverCfg(rtol=1e-9, atol=1e-9))
     res = sim.simulate(t_stop=T_STOP)
-    T_s = cast(control.FluxVectorController, ctrl.vector_ctrl).cfg.T_s
     # Motulator runs to the end of the last sampling period, drop the extra samples
     in_mdl = res.mdl.t <= T_STOP
     in_ctrl = res.ctrl.t + 0.5 * T_s <= T_STOP

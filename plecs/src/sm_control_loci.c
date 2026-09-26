@@ -5,35 +5,6 @@
 
 #include "sm_control_loci.h"
 
-/* Machine model (constant inductances) ------------------------------------- */
-
-static double complex psi_s_dq(const SynchronousMachinePars *par, double complex i_s)
-{
-    return par->L_d * creal(i_s) + par->psi_f + I * par->L_q * cimag(i_s);
-}
-
-static double complex i_s_dq(const SynchronousMachinePars *par, double complex psi_s)
-{
-    return (creal(psi_s) - par->psi_f) / par->L_d + I * cimag(psi_s) / par->L_q;
-}
-
-static double complex aux_flux(const SynchronousMachinePars *par, double complex i_s,
-                               double complex psi_s)
-{
-    double L_dd = par->L_d, L_qq = par->L_q, L_dq = 0.0;
-    return psi_s - L_qq * creal(i_s) - I * L_dd * cimag(i_s) + I * L_dq * conj(i_s);
-}
-
-static double complex aux_current(const SynchronousMachinePars *par,
-                                  double complex psi_s, double complex i_s)
-{
-    double L_dd = par->L_d, L_qq = par->L_q, L_dq = 0.0;
-    double det_L = L_dd * L_qq - L_dq * L_dq;
-    return (L_dd * creal(psi_s) + I * L_qq * cimag(psi_s) + I * L_dq * conj(psi_s))
-               / det_L
-           - i_s;
-}
-
 static double linspace(double start, double stop, int num, int k)
 {
     /* Element k of numpy.linspace(start, stop, num) */
@@ -56,7 +27,8 @@ static double mtpa_cond(double gamma, void *data)
     LocusData *d = (LocusData *)data;
     double complex i_s = d->magnitude * cexp(I * gamma);
     double complex psi_s = psi_s_dq(d->par, i_s);
-    double complex psi_a = aux_flux(d->par, i_s, psi_s);
+    IncrIndMat L = incr_ind_mat(d->par, i_s);
+    double complex psi_a = aux_flux(&L, i_s, psi_s);
     return creal(psi_a * conj(i_s));
 }
 
@@ -64,8 +36,9 @@ static double mtpv_flux_cond(double delta, void *data)
 {
     LocusData *d = (LocusData *)data;
     double complex psi_s = d->magnitude * cexp(I * delta);
-    d->i_s = i_s_dq(d->par, psi_s);
-    double complex i_a = aux_current(d->par, psi_s, d->i_s);
+    d->i_s = iterate_i_s_dq(d->par, psi_s);
+    IncrIndMat L = incr_ind_mat(d->par, d->i_s);
+    double complex i_a = aux_current(&L, psi_s, d->i_s);
     return creal(i_a * conj(psi_s));
 }
 
@@ -74,7 +47,8 @@ static double mtpv_current_cond(double gamma, void *data)
     LocusData *d = (LocusData *)data;
     double complex i_s = d->magnitude * cexp(I * gamma);
     double complex psi_s = psi_s_dq(d->par, i_s);
-    double complex i_a = aux_current(d->par, psi_s, i_s);
+    IncrIndMat L = incr_ind_mat(d->par, i_s);
+    double complex i_a = aux_current(&L, psi_s, i_s);
     return creal(i_a * conj(psi_s));
 }
 

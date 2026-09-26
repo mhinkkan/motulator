@@ -4,21 +4,26 @@ Export motulator drive systems to PLECS.
 This module converts a motulator drive system (a continuous-time system model and a
 discrete-time control system) into a PLECS Standalone model. The control system is a
 masked subsystem, whose mask parameters are the same as in the motulator API
-(`SynchronousMachinePars`, `FluxVectorControllerCfg`, and `SpeedController`). The
-subsystem contains a C-Script block, which includes the C port of the motulator
-control algorithms in the `src` directory. The derived quantities (e.g., the gains
-and the lookup tables of the reference generator) are computed by the C code at the
-start of the simulation, as in motulator. The parameters of the system model are
-written to the initialization commands of the PLECS model.
+(`SynchronousMachinePars` or `SaturatedSynchronousMachinePars`,
+`FluxVectorControllerCfg`, and `SpeedController`). The subsystem contains a C-Script
+block, which includes the C port of the motulator control algorithms in the `src`
+directory. The derived quantities (e.g., the gains and the lookup tables of the
+reference generator) are computed by the C code at the start of the simulation, as in
+motulator. The parameters of the system model are written to the initialization
+commands of the PLECS model.
 
 Currently supported:
 
-- Synchronous machine (`SynchronousMachinePars`, no magnetic saturation)
+- Synchronous machine: `SynchronousMachinePars` (the PLECS permanent-magnet
+  synchronous machine is used) or `SpatialSaturatedSynchronousMachinePars` with a
+  GradNet current map with spatial harmonics (the machine and the mechanical system
+  are modeled in a C-Script block)
 - Mechanical system (`MechanicalSystem` without friction)
 - Converter with a stiff DC bus (`VoltageSourceConverter`), averaged (ZOH) PWM model,
   and a computational delay of one sampling period
-- Sensorless flux-vector control (`FluxVectorController`) with a speed controller
-  (`SpeedController`) in `VectorControlSystem`
+- Flux-vector control (`FluxVectorController`) in the sensorless or sensored mode,
+  with `SynchronousMachinePars` or `SaturatedSynchronousMachinePars` (GradNet flux
+  map), and a speed controller (`SpeedController`) in `VectorControlSystem`
 
 The PLECS model can be simulated from Python via the XML-RPC interface of PLECS
 Standalone (enable it in Preferences > General > RPC interface).
@@ -42,7 +47,11 @@ from motulator.drive.control._sm_flux_vector import (
     FluxVectorControllerCfg,
 )
 from motulator.drive.model import Drive, MechanicalSystem, SynchronousMachine
-from motulator.drive.utils._parameters import SynchronousMachinePars
+from motulator.drive.utils._parameters import (
+    SaturatedSynchronousMachinePars,
+    SpatialSaturatedSynchronousMachinePars,
+    SynchronousMachinePars,
+)
 
 SRC_DIR = "src"
 
@@ -54,8 +63,26 @@ CTRL_OUTPUTS = {
     "misc": ["theta_m", "i_d", "i_q"],
 }
 
-# Machine signals from the PLECS probe, in the signal order of the machine component
+# Machine signals in the output port "mdl"
 MDL_OUTPUTS = ["i_a", "i_b", "i_c", "w_M", "theta_M", "tau_M"]
+
+# Inputs of the control system
+CTRL_INPUTS = ["i_s_abc", "u_dc", "w_M_ref", "theta_M"]
+
+# GradNet parameters, as fields of a workspace struct and in the C-Script parameters
+GRADNET_FIELDS = [
+    "in_dim",
+    "mu_dim",
+    "W",
+    "b",
+    "mu_log",
+    "bias",
+    "activation",
+    "beta_log",
+    "p",
+    "in_base",
+    "out_base",
+]
 
 
 # %%
@@ -66,6 +93,23 @@ class StepSignal:
     time: float
     after: float
     before: float = 0.0
+
+
+def sampled_step(sig: StepSignal, T_s: float) -> StepSignal:
+    """
+    Step signal that switches at the same sample as a reference of motulator.
+
+    The controller of motulator evaluates the reference `(t > sig.time)` at its time
+    `t`, which is accumulated by adding the sampling period. Due to rounding, the
+    switching sample may differ from that of a PLECS Step block at `sig.time`. This
+    returns a step switching halfway between the samples, as in motulator.
+
+    """
+    t, k = 0.0, 0
+    while not t > sig.time:
+        t = (t + T_s) % 1e9  # As in ControlSystem.update of motulator
+        k += 1
+    return StepSignal(time=(k - 0.5) * T_s, after=sig.after, before=sig.before)
 
 
 @dataclass
@@ -93,11 +137,18 @@ TAB_CFG = "Flux-vector control (FluxVectorControllerCfg)"
 TAB_SPEED = "Speed control (SpeedController)"
 
 MASK_PARAMS = [
-    MaskParam("n_p", "n_p: Number of pole pairs", TAB_PAR, "par.n_p", True),
-    MaskParam("R_s", "R_s: Stator resistance (Ω)", TAB_PAR, "par.R_s", True),
-    MaskParam("L_d", "L_d: d-axis inductance (H)", TAB_PAR, "par.L_d", True),
-    MaskParam("L_q", "L_q: q-axis inductance (H)", TAB_PAR, "par.L_q", True),
-    MaskParam("psi_f", "psi_f: PM-flux linkage (Vs)", TAB_PAR, "par.psi_f", True),
+    MaskParam("n_p", "n_p: Number of pole pairs", TAB_PAR, "", True),
+    MaskParam("R_s", "R_s: Stator resistance (Ω)", TAB_PAR, "", True),
+    MaskParam(
+        "psi_s_dq_fcn",
+        "psi_s_dq_fcn: GradNet flux map (SaturatedSynchronousMachinePars), "
+        "[] = constant inductances",
+        TAB_PAR,
+        "",
+    ),
+    MaskParam("L_d", "L_d: d-axis inductance (H)", TAB_PAR, ""),
+    MaskParam("L_q", "L_q: q-axis inductance (H)", TAB_PAR, ""),
+    MaskParam("psi_f", "psi_f: PM-flux linkage (Vs)", TAB_PAR, ""),
     MaskParam("i_s_max", "i_s_max: Maximum stator current (A)", TAB_CFG, "", True),
     MaskParam(
         "alpha_tau",
@@ -143,6 +194,12 @@ MASK_PARAMS = [
     MaskParam(
         "J", "J: Inertia (kgm²) for the speed observer, [] = not used", TAB_CFG, "cfg.J"
     ),
+    MaskParam(
+        "sensorless",
+        "sensorless: Sensorless mode (1) or sensored mode (0)",
+        TAB_CFG,
+        "cfg.sensorless",
+    ),
     MaskParam("T_s", "T_s: Sampling period (s)", TAB_CFG, "cfg.T_s", True),
     MaskParam("speed_J", "J: Total inertia (kgm²)", TAB_SPEED, "", True),
     MaskParam(
@@ -161,6 +218,16 @@ MASK_PARAMS = [
     MaskParam("speed_tau_M_max", "tau_M_max: Maximum motor torque (Nm)", TAB_SPEED, ""),
 ]
 
+# Mask initialization: the fields of the GradNet flux map as separate variables
+MASK_INIT = (
+    "% Fields of the GradNet flux map for the C-Script\n"
+    "if isempty(psi_s_dq_fcn)\n"
+    + "".join(f"  gn_{f} = [];\n" for f in GRADNET_FIELDS)
+    + "else\n"
+    + "".join(f"  gn_{f} = psi_s_dq_fcn.{f};\n" for f in GRADNET_FIELDS)
+    + "end\n"
+)
+
 
 # %%
 def _fit_speed_dependent_gain(k: Callable[[float], float], name: str) -> list[float]:
@@ -173,14 +240,67 @@ def _fit_speed_dependent_gain(k: Callable[[float], float], name: str) -> list[fl
     return [k0, k1]
 
 
+def export_gradnet(net_map: Any) -> dict[str, Any]:
+    """
+    Get the parameters of a GradNet map (`FluxMap` or `CurrentMap`) for the C port.
+
+    Single-module GradNets with the PNormGradient or Softmax activations are
+    supported, including the current map with spatial harmonics
+    (`CurrentMapWithHarmonics`).
+
+    """
+    import motulator.drive.gradnet as gn  # noqa: PLC0415
+
+    model = net_map.model
+    if model.num_modules != 1 or model.in_dim not in (2, 4):
+        raise NotImplementedError("Only single-module GradNets with 2D or 4D inputs")
+    block = model.blocks[0]
+    act = block.act
+    if isinstance(act, gn.PNormGradient):
+        activation, p = 1, act.q + 1
+    elif isinstance(act, gn.Softmax):
+        activation, p = 2, 0
+    else:
+        raise NotImplementedError(f"Activation not supported: {type(act).__name__}")
+
+    def arr(t: Any) -> np.ndarray:
+        return t.detach().cpu().numpy().astype(float)
+
+    harmonics = isinstance(net_map, gn.CurrentMapWithHarmonics)
+    return {
+        "in_dim": model.in_dim,
+        "mu_dim": model.in_dim - model.non_mu_dim,
+        "k": net_map.k if harmonics else 0,
+        "W": arr(block.W),  # (embed_dim, in_dim)
+        "b": arr(block.b),
+        "mu_log": arr(model.mu_log),
+        "bias": arr(model.bias),
+        "activation": activation,
+        "beta_log": float(act.beta_log.item()),
+        "p": p,
+        "in_base": float(net_map.psi_base if harmonics else net_map.in_base),
+        "out_base": float(net_map.i_base if harmonics else net_map.out_base),
+    }
+
+
+def _has_gradnet_plant(mdl: Drive) -> bool:
+    """Whether the machine model is a GradNet current map with spatial harmonics."""
+    return isinstance(mdl.machine.par, SpatialSaturatedSynchronousMachinePars)
+
+
 def _check_supported(mdl: Drive, ctrl: VectorControlSystem) -> None:
     """Raise an error if the drive system is not supported."""
     # System model
+    par = mdl.machine.par
     if not isinstance(mdl.machine, SynchronousMachine) or not isinstance(
-        mdl.machine.par, SynchronousMachinePars
+        par, (SynchronousMachinePars, SpatialSaturatedSynchronousMachinePars)
     ):
-        raise NotImplementedError("Only SynchronousMachinePars supported")
-    if mdl.machine.par.G_c != 0:
+        raise NotImplementedError(
+            "Only SynchronousMachinePars and SpatialSaturatedSynchronousMachinePars"
+        )
+    if isinstance(par, SpatialSaturatedSynchronousMachinePars):
+        export_gradnet(par.magnetic_map_fcn)  # Raises if not supported
+    if par.G_c != 0:
         raise NotImplementedError("Core losses not supported")
     if not isinstance(mdl.mechanics, MechanicalSystem) or mdl.mechanics.B_L != 0:
         raise NotImplementedError("Only MechanicalSystem without friction supported")
@@ -188,15 +308,22 @@ def _check_supported(mdl: Drive, ctrl: VectorControlSystem) -> None:
         raise NotImplementedError("LC filter and carrier comparison not supported")
     if len(mdl.delay.data) != 1:
         raise NotImplementedError("Only the computational delay of one sample")
+    _check_supported_control(ctrl)
 
-    # Control system
+
+def _check_supported_control(ctrl: VectorControlSystem) -> None:
+    """Raise an error if the control system is not supported."""
     fvc = ctrl.vector_ctrl
     if not isinstance(fvc, FluxVectorController):
         raise NotImplementedError("Only FluxVectorController supported")
-    if not fvc.cfg.sensorless or fvc.cfg.online_ref or fvc.cfg.k_f is not None:
-        raise NotImplementedError("Only sensorless mode, offline references, k_f=None")
-    if not isinstance(fvc.par, SynchronousMachinePars):
-        raise NotImplementedError("Only SynchronousMachinePars supported")
+    if fvc.cfg.online_ref or fvc.cfg.k_f is not None:
+        raise NotImplementedError("Only offline references and k_f=None supported")
+    if isinstance(fvc.par, SaturatedSynchronousMachinePars):
+        if fvc.par.psi_s_dq_fcn is None:
+            raise NotImplementedError("A flux map (psi_s_dq_fcn) is required")
+        export_gradnet(fvc.par.psi_s_dq_fcn)  # Raises if not supported
+    elif not isinstance(fvc.par, SynchronousMachinePars):
+        raise NotImplementedError("Machine model of the control system not supported")
     if not isinstance(ctrl.speed_ctrl, SpeedController):
         raise NotImplementedError("Speed-control mode with SpeedController required")
     if not isinstance(ctrl.pwm, PWM) or ctrl.pwm.overmodulation != "MPE":
@@ -207,7 +334,7 @@ def _check_supported(mdl: Drive, ctrl: VectorControlSystem) -> None:
 
 def export_mask_values(
     ctrl: VectorControlSystem, speed_ctrl_args: dict[str, float]
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
     Get the mask parameter values of the control system in the motulator API.
 
@@ -221,12 +348,13 @@ def export_mask_values(
 
     Returns
     -------
-    dict[str, Any]
+    values : dict[str, Any]
         Mask parameter values, None for the defaults.
+    flux_map : dict[str, Any] | None
+        GradNet flux map of the control system, None if constant inductances are used.
 
     """
     fvc = cast(FluxVectorController, ctrl.vector_ctrl)
-    par = cast(SynchronousMachinePars, fvc.par)
     cfg: FluxVectorControllerCfg = fvc.cfg
 
     # The speed controller stores only the gains, check the given arguments
@@ -247,12 +375,19 @@ def export_mask_values(
     alpha_o = None if cfg.alpha_o == default.alpha_o else cfg.alpha_o
     k_o = None if cfg.k_o is None else _fit_speed_dependent_gain(cfg.k_o, "k_o")
 
+    # Machine model of the control system
+    flux_map = None
+    if isinstance(fvc.par, SaturatedSynchronousMachinePars):
+        flux_map = export_gradnet(fvc.par.psi_s_dq_fcn)
+        machine = {"n_p": fvc.par.n_p, "R_s": fvc.par.R_s, "L_d": None, "L_q": None}
+        machine |= {"psi_f": None, "psi_s_dq_fcn": "est_flux_map"}
+    else:
+        par = cast(SynchronousMachinePars, fvc.par)
+        machine = {"n_p": par.n_p, "R_s": par.R_s, "L_d": par.L_d, "L_q": par.L_q}
+        machine |= {"psi_f": par.psi_f, "psi_s_dq_fcn": None}
+
     values: dict[str, Any] = {
-        "n_p": par.n_p,
-        "R_s": par.R_s,
-        "L_d": par.L_d,
-        "L_q": par.L_q,
-        "psi_f": par.psi_f,
+        **machine,
         "i_s_max": cfg.i_s_max,
         "alpha_tau": cfg.alpha_tau,
         "alpha_psi": cfg.alpha_psi,
@@ -264,27 +399,39 @@ def export_mask_values(
         "k_u": cfg.k_u,
         "k_mtpv": cfg.k_mtpv,
         "J": cfg.J,
+        "sensorless": int(cfg.sensorless),
         "T_s": cfg.T_s,
         "speed_J": speed_ctrl_args["J"],
         "speed_alpha_s": speed_ctrl_args["alpha_s"],
         "speed_alpha_i": speed_ctrl_args.get("alpha_i"),
         "speed_tau_M_max": speed_ctrl_args.get("tau_M_max", float("inf")),
     }
-    return values
+    return values, flux_map
 
 
 def export_plant_variables(mdl: Drive) -> list[tuple[str, Any]]:
     """Get the workspace variables of the system model."""
-    par = cast(SynchronousMachinePars, mdl.machine.par)
-    return [
-        ("machine.n_p", par.n_p),
-        ("machine.R_s", par.R_s),
-        ("machine.L_d", par.L_d),
-        ("machine.L_q", par.L_q),
-        ("machine.psi_f", par.psi_f),
+    variables: list[tuple[str, Any]] = []
+    if _has_gradnet_plant(mdl):
+        par = cast(SpatialSaturatedSynchronousMachinePars, mdl.machine.par)
+        g = export_gradnet(par.magnetic_map_fcn)
+        variables += [("machine.n_p", par.n_p), ("machine.R_s", par.R_s)]
+        variables += [("machine.k", g["k"])]
+        variables += [(f"machine.current_map.{f}", g[f]) for f in GRADNET_FIELDS]
+    else:
+        par = cast(SynchronousMachinePars, mdl.machine.par)
+        variables += [
+            ("machine.n_p", par.n_p),
+            ("machine.R_s", par.R_s),
+            ("machine.L_d", par.L_d),
+            ("machine.L_q", par.L_q),
+            ("machine.psi_f", par.psi_f),
+        ]
+    variables += [
         ("mechanics.J", cast(MechanicalSystem, mdl.mechanics).J),
         ("converter.u_dc", mdl.converter.u_dc),
     ]
+    return variables
 
 
 # %%
@@ -292,6 +439,11 @@ def _fmt(value: Any) -> str:
     """Format a value for the PLECS (Octave) workspace."""
     if value is None:
         return "[]"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, np.ndarray) and value.ndim == 2:
+        rows = "; ".join(" ".join(_fmt(v) for v in row) for row in value)
+        return f"[{rows}]"
     if isinstance(value, (list, tuple, np.ndarray)):
         return "[" + " ".join(_fmt(v) for v in np.asarray(value).ravel()) + "]"
     value = float(value)
@@ -468,24 +620,89 @@ def _scope(axes: list[tuple[str, str]]) -> str:
     return extra
 
 
-def _cscript_code() -> dict[str, str]:
-    """Generate the code sections of the C-Script block."""
+def _cscript(
+    code: dict[str, str],
+    num_inputs: str,
+    num_outputs: str,
+    parameters: str,
+    ts: str,
+    num_disc_states: int = 0,
+    num_cont_states: int = 0,
+    feedthrough: str = "1",
+) -> dict[str, str]:
+    """Parameters of a C-Script block."""
+    return {
+        "DialogGeometry": "",
+        "NumInputs": num_inputs,
+        "NumOutputs": num_outputs,
+        "NumContStates": str(num_cont_states),
+        "NumDiscStates": str(num_disc_states),
+        "NumZCSignals": "0",
+        "DirectFeedthrough": feedthrough,
+        "Ts": ts,
+        "Parameters": parameters,
+        "LangStandard": "2",
+        "GnuExtensions": "2",
+        "RuntimeCheck": "2",
+        "Declarations": code.get("Declarations", ""),
+        "StartFcn": code.get("StartFcn", ""),
+        "OutputFcn": code.get("OutputFcn", ""),
+        "UpdateFcn": code.get("UpdateFcn", ""),
+        "DerivativeFcn": code.get("DerivativeFcn", ""),
+        "TerminateFcn": "",
+        "StoreCustomStateFcn": "",
+        "RestoreCustomStateFcn": "",
+    }
+
+
+# Common C-Script declarations
+C_PARAMS = (
+    "#define P(i, j) ParamRealData(i, j)\n"
+    "#define PDIM(i) (ParamDim(i, 0) * ParamDim(i, 1))\n"
+    "\n"
+    "/* Parameter value, or NAN for an empty parameter (None in motulator) */\n"
+    "#define PARAM(i) (PDIM(i) > 0 ? P(i, 0) : NAN)\n"
+    "\n"
+    "/* Read a GradNet from the parameters i0, i0 + 1, ... (GRADNET_FIELDS) */\n"
+    "#define READ_GRADNET(net, i0) \\\n"
+    "    do { \\\n"
+    "        (net).in_dim = (int)P((i0), 0); \\\n"
+    "        (net).mu_dim = (int)P((i0) + 1, 0); \\\n"
+    "        (net).embed_dim = PDIM((i0) + 3); \\\n"
+    "        for (int j_ = 0; j_ < (net).embed_dim; j_++) { \\\n"
+    "            for (int k_ = 0; k_ < (net).in_dim; k_++) { \\\n"
+    "                (net).W[j_][k_] = P((i0) + 2, j_ + (net).embed_dim * k_); \\\n"
+    "            } \\\n"
+    "            (net).b[j_] = P((i0) + 3, j_); \\\n"
+    "        } \\\n"
+    "        for (int k_ = 0; k_ < (net).in_dim; k_++) { \\\n"
+    "            (net).mu_log[k_] = (k_ < (net).mu_dim) ? P((i0) + 4, k_) : 0.0; \\\n"
+    "            (net).bias[k_] = P((i0) + 5, k_); \\\n"
+    "        } \\\n"
+    "        (net).activation = (GradNetActivation)(int)P((i0) + 6, 0); \\\n"
+    "        (net).beta_log = P((i0) + 7, 0); \\\n"
+    "        (net).p = (int)P((i0) + 8, 0); \\\n"
+    "        (net).in_base = P((i0) + 9, 0); \\\n"
+    "        (net).out_base = P((i0) + 10, 0); \\\n"
+    "    } while (0)\n"
+)
+
+
+def _control_cscript_code() -> dict[str, str]:
+    """Generate the code sections of the control-system C-Script block."""
     declarations = (
         "/* Generated by motulator_plecs.py. The control algorithms are in the\n"
         " * included C files. The parameters come from the mask of the subsystem. */\n"
         f'#include "{SRC_DIR}/common.c"\n'
+        f'#include "{SRC_DIR}/gradnet.c"\n'
+        f'#include "{SRC_DIR}/sm_parameters.c"\n'
         f'#include "{SRC_DIR}/sm_control_loci.c"\n'
         f'#include "{SRC_DIR}/sm_flux_vector.c"\n'
-        "\n"
-        "#define P(i, j) ParamRealData(i, j)\n"
-        "#define PDIM(i) (ParamDim(i, 0) * ParamDim(i, 1))\n"
-        "\n"
-        "/* Parameter value, or NAN for an empty parameter (None in motulator) */\n"
-        "#define PARAM(i) (PDIM(i) > 0 ? P(i, 0) : NAN)\n"
-        "\n"
+        "\n" + C_PARAMS + "\n"
         "static VectorControlSystem ctrl;\n"
     )
     i = {m.variable: k for k, m in enumerate(MASK_PARAMS)}
+    i_gn = len(MASK_PARAMS)  # The GradNet parameters follow the mask parameters
     checks = "".join(
         f"if (PDIM({i[m.variable]}) != 1) {{\n"
         f'    SetErrorMessage("{m.variable} must be a scalar.");\n'
@@ -493,11 +710,6 @@ def _cscript_code() -> dict[str, str]:
         "}\n"
         for m in MASK_PARAMS
         if m.required
-    )
-    par = "".join(
-        f"{m.target} = P({i[m.variable]}, 0);\n"
-        for m in MASK_PARAMS
-        if m.target.startswith("par.")
     )
     cfg = "".join(
         f"if (PDIM({i[m.variable]}) > 0) {{\n"
@@ -507,6 +719,7 @@ def _cscript_code() -> dict[str, str]:
         if m.target.startswith("cfg.")
     )
     k_o, tau_M_max = i["k_o"], i["speed_tau_M_max"]
+    L_d, L_q, psi_f = i["L_d"], i["L_q"], i["psi_f"]
     start = (
         "/* Check the parameters of the mask */\n"
         + checks
@@ -515,8 +728,24 @@ def _cscript_code() -> dict[str, str]:
         "    return;\n"
         "}\n"
         "\n"
-        "/* Machine model parameters (SynchronousMachinePars) */\n"
-        "SynchronousMachinePars par;\n" + par + "\n"
+        "/* Machine model parameters: SaturatedSynchronousMachinePars with a GradNet\n"
+        " * flux map, or SynchronousMachinePars with constant inductances */\n"
+        "SynchronousMachinePars par;\n"
+        f"if (PDIM({i_gn}) > 0) {{\n"
+        "    GradNet flux_map;\n"
+        f"    READ_GRADNET(flux_map, {i_gn});\n"
+        "    par = saturated_synchronous_machine_pars(\n"
+        f"        P({i['n_p']}, 0), P({i['R_s']}, 0), &flux_map);\n"
+        "} else {\n"
+        f"    if (PDIM({L_d}) != 1 || PDIM({L_q}) != 1 || PDIM({psi_f}) != 1) {{\n"
+        '        SetErrorMessage("L_d, L_q, and psi_f needed without a flux map.");\n'
+        "        return;\n"
+        "    }\n"
+        "    par = synchronous_machine_pars(\n"
+        f"        P({i['n_p']}, 0), P({i['R_s']}, 0), P({L_d}, 0), P({L_q}, 0),\n"
+        f"        P({psi_f}, 0));\n"
+        "}\n"
+        "\n"
         "/* Flux-vector controller configuration (FluxVectorControllerCfg), the\n"
         " * defaults are used for empty parameters */\n"
         "FluxVectorControllerCfg cfg = "
@@ -555,7 +784,8 @@ def _cscript_code() -> dict[str, str]:
         "/* Measurements */\n"
         "double i_s_abc[3] = {InputSignal(0, 0), InputSignal(0, 1),\n"
         "                     InputSignal(0, 2)};\n"
-        "Measurements meas = {abc2complex(i_s_abc), InputSignal(1, 0)};\n"
+        "Measurements meas = {abc2complex(i_s_abc), InputSignal(1, 0),\n"
+        "                     InputSignal(3, 0)};\n"
         "double w_M_ref = InputSignal(2, 0);\n"
         "\n"
         "vector_control_system_compute_output(&ctrl, &meas, w_M_ref);\n"
@@ -567,9 +797,9 @@ def _cscript_code() -> dict[str, str]:
         "\n"
         "/* Monitored signals */\n"
     )
-    for i, names in enumerate(CTRL_OUTPUTS.values()):
+    for i_out, names in enumerate(CTRL_OUTPUTS.values()):
         for j, name in enumerate(names):
-            output += f"OutputSignal({i + 1}, {j}) = {monitored[name]};\n"
+            output += f"OutputSignal({i_out + 1}, {j}) = {monitored[name]};\n"
     update = (
         "vector_control_system_update(&ctrl);\n"
         "for (int k = 0; k < 3; k++) {\n"
@@ -581,6 +811,72 @@ def _cscript_code() -> dict[str, str]:
         "StartFcn": start,
         "OutputFcn": output,
         "UpdateFcn": update,
+    }
+
+
+def _machine_cscript_code() -> dict[str, str]:
+    """Generate the code sections of the machine C-Script block (GradNet plant)."""
+    declarations = (
+        "/* Generated by motulator_plecs.py. The machine model is in the included C\n"
+        " * files. The parameters come from the initialization commands. */\n"
+        f'#include "{SRC_DIR}/common.c"\n'
+        f'#include "{SRC_DIR}/gradnet.c"\n'
+        f'#include "{SRC_DIR}/sm_machine.c"\n'
+        "\n" + C_PARAMS + "\n"
+        "static SpatialSaturatedSynchronousMachinePars par;\n"
+        "static double J;\n"
+        "\n"
+        "/* Continuous states */\n"
+        "#define PSI_D ContState(0)\n"
+        "#define PSI_Q ContState(1)\n"
+        "#define THETA_M ContState(2)\n"
+        "#define W_M ContState(3)\n"
+    )
+    start = (
+        "GradNet current_map;\n"
+        "READ_GRADNET(current_map, 3);\n"
+        "par = spatial_saturated_synchronous_machine_pars(\n"
+        "    P(0, 0), P(1, 0), &current_map, (int)P(2, 0));\n"
+        f"J = P({3 + len(GRADNET_FIELDS)}, 0);\n"
+        "\n"
+        "/* Initial states as in motulator */\n"
+        "PSI_D = par.psi_f;\n"
+        "PSI_Q = 0.0;\n"
+        "THETA_M = 0.0;\n"
+        "W_M = 0.0;\n"
+    )
+    output = (
+        "double complex i_s_dq;\n"
+        "double tau_M;\n"
+        "double theta_m = par.n_p * THETA_M;\n"
+        "machine_magnetic_map(&par, PSI_D + I * PSI_Q, theta_m, &i_s_dq, &tau_M);\n"
+        "double i_s_abc[3];\n"
+        "complex2abc(i_s_dq * cexp(I * theta_m), i_s_abc);\n"
+        "for (int k = 0; k < 3; k++) {\n"
+        "    OutputSignal(0, k) = i_s_abc[k];\n"
+        "}\n"
+        "OutputSignal(1, 0) = W_M;\n"
+        "OutputSignal(2, 0) = THETA_M;\n"
+        "OutputSignal(3, 0) = tau_M;\n"
+    )
+    derivative = (
+        "double u_s_abc[3] = {InputSignal(0, 0), InputSignal(0, 1),\n"
+        "                     InputSignal(0, 2)};\n"
+        "double complex d_psi_s_dq;\n"
+        "double d_theta_M, d_w_M;\n"
+        "machine_rhs(&par, J, abc2complex(u_s_abc), InputSignal(1, 0),\n"
+        "            PSI_D + I * PSI_Q, THETA_M, W_M, &d_psi_s_dq, &d_theta_M,\n"
+        "            &d_w_M);\n"
+        "ContDeriv(0) = creal(d_psi_s_dq);\n"
+        "ContDeriv(1) = cimag(d_psi_s_dq);\n"
+        "ContDeriv(2) = d_theta_M;\n"
+        "ContDeriv(3) = d_w_M;\n"
+    )
+    return {
+        "Declarations": declarations,
+        "StartFcn": start,
+        "OutputFcn": output,
+        "DerivativeFcn": derivative,
     }
 
 
@@ -596,6 +892,7 @@ def _step(sig: StepSignal) -> dict[str, str]:
 # Layout of the schematic (x to the right, y downwards). The control system is on
 # the left, the converter and the machine on the right, and the scope at the bottom.
 CS = (300, 200)  # Control system; inputs at x - 65, outputs at x + 55
+N_IN = len(CTRL_INPUTS)  # The outputs of the control system start from N_IN + 1
 
 
 def _fmt_mask(value: Any) -> str:
@@ -637,26 +934,22 @@ def _control_subsystem(mask_values: dict[str, Any]) -> tuple[str, str]:
         '      SampleTime    "-1"\n'
         '      CodeGenDiscretizationMethod "2"\n'
         '      CodeGenTarget "Generic"\n'
-        '      MaskType      "Sensorless flux-vector control (motulator)"\n'
+        '      MaskType      "Flux-vector control (motulator)"\n'
         '      MaskDescription "Speed control of a synchronous machine drive with '
-        "sensorless flux-vector control. The parameters correspond to the motulator "
-        "API: SynchronousMachinePars, FluxVectorControllerCfg, and SpeedController. "
-        "Empty parameters ([]) correspond to None, i.e., the defaults of "
-        'motulator."\n'
+        "flux-vector control. The parameters correspond to the motulator API: "
+        "SynchronousMachinePars (or SaturatedSynchronousMachinePars with a GradNet "
+        "flux map), FluxVectorControllerCfg, and SpeedController. Empty parameters "
+        '([]) correspond to None, i.e., the defaults of motulator."\n'
+        f"      MaskInit      {_q(MASK_INIT)}\n"
         '      MaskDisplayLang "2"\n'
         "      MaskDisplay   "
-        + _q(
-            "Icon:text(0, -15, 'Sensorless')\n"
-            "Icon:text(0, 0, 'flux-vector')\n"
-            "Icon:text(0, 15, 'control')"
-        )
+        + _q("Icon:text(0, -8, 'Flux-vector')\nIcon:text(0, 8, 'control')")
         + "\n"
         "      MaskIconFrame on\n"
         "      MaskIconOpaque off\n"
         "      MaskIconRotates on\n"
         + "".join(_mask_parameter(m, mask_values[m.variable]) for m in MASK_PARAMS)
     )
-    inputs = ["i_s_abc", "u_dc", "w_M_ref"]
     outputs = ["d_abc", *CTRL_OUTPUTS]
     terminals = "".join(
         "      Terminal {\n"
@@ -665,43 +958,40 @@ def _control_subsystem(mask_values: dict[str, Any]) -> tuple[str, str]:
         f"        Direction     {d}\n"
         "      }\n"
         for typ, x, y, d in [
-            *[("Input", -50, 10 * k - 10, "left") for k in range(len(inputs))],
+            *[("Input", -50, 10 * k - 10, "left") for k in range(N_IN)],
             *[("Output", 54, 10 * k - 20, "right") for k in range(len(outputs))],
         ]
     )
 
     # Contents: input ports, C-Script, and output ports
     sub = _Schematic()
-    for k, name in enumerate(inputs):
+    y_cs = 90  # C-Script position, inputs spaced by 10 around it
+    for k, name in enumerate(CTRL_INPUTS):
+        y_in = y_cs + 10 * k - 5 * (N_IN - 1)
         sub.component(
-            "Input", name, (60, 60 + 30 * k), {"Index": str(k + 1), "Width": "-1"}
+            "Input", name, (60, 40 + 30 * k), {"Index": str(k + 1), "Width": "-1"}
         )
-        sub.signal(
-            (name, 1), ("C-Script", k + 1), [(120, 60 + 30 * k), (120, 80 + 10 * k)]
-        )
-    cscript = {
-        "DialogGeometry": "",
-        "NumInputs": "[3 1 1]",
-        "NumOutputs": "[3 " + " ".join(str(n) for n in n_ctrl) + "]",
-        "NumContStates": "0",
-        "NumDiscStates": "3",
-        "NumZCSignals": "0",
-        "DirectFeedthrough": "1",
-        "Ts": "T_s",
-        "Parameters": ", ".join(m.variable for m in MASK_PARAMS),
-        "LangStandard": "2",
-        "GnuExtensions": "2",
-        "RuntimeCheck": "2",
-        **_cscript_code(),
-        "DerivativeFcn": "",
-        "TerminateFcn": "",
-        "StoreCustomStateFcn": "",
-        "RestoreCustomStateFcn": "",
-    }
+        x = 100 + 8 * k  # Separate vertical segments for each input
+        sub.signal((name, 1), ("C-Script", k + 1), [(x, 40 + 30 * k), (x, y_in)])
+    # The flux map (a struct) is passed via the gn_* variables of the mask
+    # initialization, since the C-Script parameters must be numeric
+    parameters = [
+        f"isempty({m.variable})" if m.variable == "psi_s_dq_fcn" else m.variable
+        for m in MASK_PARAMS
+    ]
+    parameters += [f"gn_{f}" for f in GRADNET_FIELDS]
+    cscript = _cscript(
+        _control_cscript_code(),
+        "[3 1 1 1]",
+        "[3 " + " ".join(str(n) for n in n_ctrl) + "]",
+        ", ".join(parameters),
+        "T_s",
+        num_disc_states=3,
+    )
     sub.component(
         "CScript",
         "C-Script",
-        (200, 90),
+        (200, y_cs),
         cscript,
         direction="up",
         extra="      Frame         [-50, -60; 50, 60]\n",
@@ -709,9 +999,11 @@ def _control_subsystem(mask_values: dict[str, Any]) -> tuple[str, str]:
     for k, name in enumerate(outputs):
         y = 20 + 35 * k
         # The port index runs over both the inputs and the outputs
-        index = str(len(inputs) + k + 1)
+        index = str(N_IN + k + 1)
         sub.component("Output", name, (340, y), {"Index": index, "Width": "-1"})
-        sub.signal(("C-Script", 4 + k), (name, 1), [(280, 70 + 10 * k), (280, y)])
+        y_out = y_cs + 10 * k - 5 * (len(outputs) - 1)
+        x = 265 + 8 * k  # Separate vertical segments for each output
+        sub.signal(("C-Script", N_IN + 1 + k), (name, 1), [(x, y_out), (x, y)])
     schematic = (
         "      Schematic {\n"
         "        Location      [0, 0; 500, 250]\n"
@@ -735,26 +1027,37 @@ def _control_subsystem(mask_values: dict[str, Any]) -> tuple[str, str]:
     return header, terminals + schematic + mask_probes
 
 
+# Probe signals of the machine: (current, speed, angle, torque)
+PMSM_PROBES = ["Stator phase currents", "Rotational speed", "Rotor position"]
+PMSM_PROBES += ["Electrical torque"]
+GRADNET_PROBES = ["Output 1", "Output 2", "Output 3", "Output 4"]
+
+
 def _add_control_system(
-    sch: _Schematic, mask_values: dict[str, Any], w_M_ref: StepSignal
+    sch: _Schematic,
+    mask_values: dict[str, Any],
+    w_M_ref: StepSignal,
+    machine_probes: list[str],
 ) -> None:
     """Add the references, measurements, and the control system."""
-    x_in = CS[0] - 65
-
     # Measurements and references
     sch.component(
-        "PlecsProbe",
-        "i_s_abc",
-        (110, 130),
-        extra=_probe("Machine", ["Stator phase currents"]),
+        "PlecsProbe", "i_s_abc", (110, 130), extra=_probe("Machine", machine_probes[:1])
     )
-    sch.signal(("i_s_abc", 1), ("Control system", 1), [(210, 130), (210, 190)])
+    sch.signal(("i_s_abc", 1), ("Control system", 1), [(210, 130), (210, CS[1] - 10)])
     sch.component(
         "Constant", "u_dc", (110, 200), {"Value": "converter.u_dc", "DataType": "10"}
     )
     sch.signal(("u_dc", 1), ("Control system", 2))
     sch.component("Step", "w_M_ref", (110, 270), _step(w_M_ref))
-    sch.signal(("w_M_ref", 1), ("Control system", 3), [(210, 270), (210, x_in - 25)])
+    sch.signal(("w_M_ref", 1), ("Control system", 3), [(210, 270), (210, CS[1] + 10)])
+    sch.component(
+        "PlecsProbe",
+        "theta_M",
+        (110, 330),
+        extra=_probe("Machine", machine_probes[2:3]),
+    )
+    sch.signal(("theta_M", 1), ("Control system", 4), [(220, 330), (220, CS[1] + 20)])
 
     # Control system as a masked subsystem
     header, trailer = _control_subsystem(mask_values)
@@ -763,16 +1066,19 @@ def _add_control_system(
     )
 
 
-def _add_plant(sch: _Schematic, tau_L: StepSignal) -> None:
-    """Add the converter, machine, and mechanics."""
-    # Converter (averaged model): phase voltages d_abc*u_dc
+def _add_converter(sch: _Schematic) -> None:
+    """Add the converter (averaged model): phase voltages d_abc*u_dc."""
     sch.component(
         "Gain",
         "Converter",
         (410, 180),
         {"K": "converter.u_dc", "Multiplication": "1", "DataType": "11"},
     )
-    sch.signal(("Control system", 4), ("Converter", 1))
+    sch.signal(("Control system", N_IN + 1), ("Converter", 1))
+
+
+def _add_pmsm_plant(sch: _Schematic, tau_L: StepSignal) -> None:
+    """Add the PLECS permanent-magnet synchronous machine and mechanics."""
     sch.component(
         "SignalDemux", "Demux", (470, 180), {"Width": "[1 1 1]"}, flipped=True
     )
@@ -855,12 +1161,59 @@ def _add_plant(sch: _Schematic, tau_L: StepSignal) -> None:
     sch.connect(("Frame", 1), ("Load", 1), "Rotational")
     sch.signal(("tau_L", 1), ("Load", 2))
 
+    # Output port for scripted simulations
+    sch.component(
+        "PlecsProbe",
+        "Machine signals",
+        (560, 300),
+        extra=_probe("Machine", PMSM_PROBES),
+    )
+    sch.component("Output", "mdl", (650, 300), {"Index": "1", "Width": "-1"})
+    sch.signal(("Machine signals", 1), ("mdl", 1))
 
-def _add_outputs(sch: _Schematic) -> None:
-    """Add the output ports and the scope."""
+
+def _add_gradnet_plant(sch: _Schematic, tau_L: StepSignal) -> None:
+    """Add the machine with a GradNet current map and the mechanics (C-Script)."""
+    parameters = ["machine.n_p", "machine.R_s", "machine.k"]
+    parameters += [f"machine.current_map.{f}" for f in GRADNET_FIELDS]
+    parameters += ["mechanics.J"]
+    cscript = _cscript(
+        _machine_cscript_code(),
+        "[3 1]",
+        "[3 1 1 1]",
+        ", ".join(parameters),
+        "0",
+        num_cont_states=4,
+        feedthrough="0",
+    )
+    sch.component(
+        "CScript",
+        "Machine",
+        (620, 185),
+        cscript,
+        direction="up",
+        label="north",
+        extra="      Frame         [-50, -40; 50, 40]\n",
+    )
+    sch.signal(("Converter", 2), ("Machine", 1))
+    sch.component("Step", "tau_L", (520, 240), _step(tau_L))
+    sch.signal(("tau_L", 1), ("Machine", 2), [(545, 240), (545, 190)])
+
+    # Output port for scripted simulations: [i_s_abc, w_M, theta_M, tau_M]
+    sch.component(
+        "SignalMux", "Mux mdl", (720, 185), {"Width": "[3 1 1 1]"}, show=False
+    )
+    for k in range(4):
+        sch.signal(("Machine", 3 + k), ("Mux mdl", 2 + k))
+    sch.component("Output", "mdl", (790, 185), {"Index": "1", "Width": "-1"})
+    sch.signal(("Mux mdl", 1), ("mdl", 1))
+
+
+def _add_outputs(sch: _Schematic, machine_probes: list[str]) -> None:
+    """Add the output port of the controller signals and the scope."""
     n_ctrl = [len(v) for v in CTRL_OUTPUTS.values()]
 
-    # Output ports for scripted simulations: controller and machine signals
+    # Output port for scripted simulations: controller signals
     sch.component(
         "SignalMux",
         "Mux",
@@ -869,33 +1222,17 @@ def _add_outputs(sch: _Schematic) -> None:
         show=False,
     )
     for i in range(len(n_ctrl)):
-        sch.signal(("Control system", 5 + i), ("Mux", i + 2))
+        sch.signal(("Control system", N_IN + 2 + i), ("Mux", i + 2))
     sch.component("Output", "ctrl", (480, 250), {"Index": "2", "Width": "-1"})
     sch.signal(("Mux", 1), ("ctrl", 1), [(440, 205), (440, 250)])
-    sch.component(
-        "PlecsProbe",
-        "Machine signals",
-        (560, 300),
-        extra=_probe(
-            "Machine",
-            [
-                "Stator phase currents",
-                "Rotational speed",
-                "Rotor position",
-                "Electrical torque",
-            ],
-        ),
-    )
-    sch.component("Output", "mdl", (650, 300), {"Index": "1", "Width": "-1"})
-    sch.signal(("Machine signals", 1), ("mdl", 1))
 
     # Scope, fed by probes of the controller outputs and the machine
     probes = [
         ("Speed ref. & est.", "Control system", [MASK_PROBES[1]], (720, 310)),
-        ("Speed", "Machine", ["Rotational speed"], (720, 350)),
+        ("Speed", "Machine", [machine_probes[1]], (720, 350)),
         ("Torque ref. & est.", "Control system", [MASK_PROBES[2]], (720, 385)),
-        ("Torque", "Machine", ["Electrical torque"], (720, 420)),
-        ("Currents", "Machine", ["Stator phase currents"], (720, 460)),
+        ("Torque", "Machine", [machine_probes[3]], (720, 420)),
+        ("Currents", "Machine", [machine_probes[0]], (720, 460)),
         ("Flux ref. & est.", "Control system", [MASK_PROBES[3]], (720, 500)),
     ]
     for name, comp, signals, pos in probes:
@@ -967,19 +1304,26 @@ def write_plecs_model(
     """
     path = Path(path)
     _check_supported(mdl, ctrl)
-    mask_values = export_mask_values(ctrl, speed_ctrl_args)
+    mask_values, flux_map = export_mask_values(ctrl, speed_ctrl_args)
+    variables = export_plant_variables(mdl)
+    if flux_map is not None:
+        variables += [(f"est_flux_map.{f}", flux_map[f]) for f in GRADNET_FIELDS]
     init = (
         "% Generated by motulator_plecs.py. The parameters of the control system\n"
         "% are in the mask of the subsystem 'Control system'.\n"
-        + "".join(
-            f"{name} = {_fmt(value)};\n" for name, value in export_plant_variables(mdl)
-        )
+        + "".join(f"{name} = {_fmt(value)};\n" for name, value in variables)
     )
 
     sch = _Schematic()
-    _add_control_system(sch, mask_values, w_M_ref)
-    _add_plant(sch, tau_L)
-    _add_outputs(sch)
+    gradnet_plant = _has_gradnet_plant(mdl)
+    machine_probes = GRADNET_PROBES if gradnet_plant else PMSM_PROBES
+    _add_control_system(sch, mask_values, w_M_ref, machine_probes)
+    _add_converter(sch)
+    if gradnet_plant:
+        _add_gradnet_plant(sch, tau_L)
+    else:
+        _add_pmsm_plant(sch, tau_L)
+    _add_outputs(sch, machine_probes)
 
     text = (
         "Plecs {\n"
@@ -1040,6 +1384,12 @@ def simulate_plecs(
 
     path = Path(path).resolve()
     server = xmlrpc.client.ServerProxy(url)
+    # Close the model first, since loading a model that is already open (e.g., in
+    # the PLECS window) does not reload it from the file
+    try:
+        server.plecs.close(path.stem)
+    except xmlrpc.client.Fault:
+        pass
     server.plecs.load(str(path))
     opts: dict[str, Any] = {"SolverOpts": {"OutputTimes": [float(t) for t in t_eval]}}
     if model_vars:

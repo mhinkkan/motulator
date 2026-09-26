@@ -23,6 +23,7 @@ static FluxVectorControllerCfg flux_vector_controller_cfg(double i_s_max)
     cfg.k_mtpv = 0.85;
     cfg.J = NAN;
     cfg.T_s = 125e-6;
+    cfg.sensorless = 1;
     return cfg;
 }
 
@@ -55,16 +56,18 @@ static double complex flux_observer_aux_flux(const FluxObserver *self,
                                              double complex i_s,
                                              double complex psi_s)
 {
-    double L_dd = self->par.L_d, L_qq = self->par.L_q, L_dq = 0.0;
-    return psi_s - L_qq * creal(i_s) - I * L_dd * cimag(i_s) + I * L_dq * conj(i_s);
+    IncrIndMat L = incr_ind_mat(&self->par, i_s);
+    return aux_flux(&L, i_s, psi_s);
 }
 
 static void flux_observer_compute_output(const FluxObserver *self,
                                          double complex u_s_ab, double complex i_s_ab,
-                                         double w_M, ObserverOutputs *out)
+                                         double w_M, double eps_ext, double h,
+                                         ObserverOutputs *out)
 {
+    /* The weight h of the external position error signal eps_ext selects between
+     * the sensorless (h = 0) and sensored (h = 1) modes */
     const SynchronousMachinePars *par = &self->par;
-    double h = 0.0; /* Sensorless mode: model-based error signal only */
     out->psi_s = self->psi_s;
     out->psi_f = par->psi_f;
     out->h = h;
@@ -89,7 +92,7 @@ static void flux_observer_compute_output(const FluxObserver *self,
 
     /* Error signals for the rotor angle and PM-flux estimation */
     double complex ratio = (out->psi_a != 0.0) ? out->e_o / out->psi_a : 0.0;
-    out->eps = -(1.0 - h) * cimag(ratio) / par->n_p;
+    out->eps = h * eps_ext - (1.0 - h) * cimag(ratio) / par->n_p;
     out->eps_f = -(1.0 - h) * creal(ratio);
 
     /* Angular speed of the coordinate system */
@@ -141,12 +144,13 @@ static void speed_flux_observer_init(SpeedFluxObserver *self,
 
 static void speed_flux_observer_compute_output(const SpeedFluxObserver *self,
                                                double complex u_s_ab,
-                                               double complex i_s_ab,
-                                               ObserverOutputs *out)
+                                               double complex i_s_ab, double eps_ext,
+                                               double h, ObserverOutputs *out)
 {
     double w_M = self->speed_observer.w_M;
     double tau_L = self->speed_observer.tau_L;
-    flux_observer_compute_output(&self->flux_observer, u_s_ab, i_s_ab, w_M, out);
+    flux_observer_compute_output(&self->flux_observer, u_s_ab, i_s_ab, w_M, eps_ext, h,
+                                 out);
     out->tau_L = tau_L;
 }
 
@@ -228,11 +232,8 @@ static double complex flux_torque_ctrl_aux_current(const FluxTorqueController *s
                                                    double complex psi_s,
                                                    double complex i_s)
 {
-    double L_dd = self->par.L_d, L_qq = self->par.L_q, L_dq = 0.0;
-    double det_L = L_dd * L_qq - L_dq * L_dq;
-    return (L_dd * creal(psi_s) + I * L_qq * cimag(psi_s) + I * L_dq * conj(psi_s))
-               / det_L
-           - i_s;
+    IncrIndMat L = incr_ind_mat(&self->par, i_s);
+    return aux_current(&L, psi_s, i_s);
 }
 
 static double complex flux_torque_ctrl_compute_output(FluxTorqueController *self,
@@ -296,17 +297,24 @@ static void flux_vector_ctrl_init(FluxVectorController *self,
     double J = isnan(cfg->J) ? 0.0 : cfg->J; /* Zero means None */
     double alpha_o = cfg->alpha_o;
     if (isnan(alpha_o)) {
-        double alpha = 2.0 * M_PI * 50.0; /* Sensorless mode */
+        double alpha = cfg->sensorless ? 2.0 * M_PI * 50.0 : 2.0 * M_PI * 400.0;
         alpha_o = (J > 0.0) ? alpha / 3.0 : alpha;
     }
-    /* Default observer gain of create_speed_flux_observer (sensorless mode) */
+    /* Default observer gain of create_speed_flux_observer */
     double k_o[2] = {cfg->k_o[0], cfg->k_o[1]};
     if (isnan(k_o[0]) || isnan(k_o[1])) {
-        k_o[0] = 0.25 * par.R_s * (1.0 / par.L_d + 1.0 / par.L_q);
-        k_o[1] = 0.2;
+        if (cfg->sensorless) {
+            IncrIndMat L_s0 = incr_ind_mat(&par, 0.0);
+            k_o[0] = 0.25 * par.R_s * (1.0 / L_s0.L_dd + 1.0 / L_s0.L_qq);
+            k_o[1] = 0.2;
+        } else {
+            k_o[0] = 2.0 * M_PI * 15.0;
+            k_o[1] = 0.0;
+        }
     }
 
     self->T_s = cfg->T_s;
+    self->sensorless = cfg->sensorless;
     reference_gen_init(&self->reference_gen, &par, cfg->i_s_max, cfg->psi_s_min,
                        cfg->psi_s_max, cfg->k_u, cfg->k_mtpv);
     flux_torque_ctrl_init(&self->flux_torque_ctrl, par, alpha_psi, cfg->alpha_tau,
@@ -357,8 +365,18 @@ static void vector_control_system_compute_output(VectorControlSystem *self,
 
     /* Feedback signals */
     double complex u_c_ab = self->pwm.realized_voltage;
-    speed_flux_observer_compute_output(&self->vector_ctrl.observer, u_c_ab,
-                                       meas->i_c_ab, fbk);
+    const SpeedFluxObserver *observer = &self->vector_ctrl.observer;
+    if (self->vector_ctrl.sensorless) {
+        speed_flux_observer_compute_output(observer, u_c_ab, meas->i_c_ab, 0.0, 0.0,
+                                           fbk);
+    } else {
+        /* Position error from the measured rotor angle (position_error) */
+        double n_p = observer->flux_observer.par.n_p;
+        double theta_m = observer->flux_observer.theta_m;
+        double eps = wrap(n_p * meas->theta_M - theta_m) / n_p;
+        speed_flux_observer_compute_output(observer, u_c_ab, meas->i_c_ab, eps, 1.0,
+                                           fbk);
+    }
     fbk->u_dc = meas->u_dc;
 
     /* Speed controller and vector controller */

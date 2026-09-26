@@ -32,6 +32,8 @@ SRC_DIR = Path(__file__).parent / "src"
 
 CAPI = r"""
 #include "common.c"
+#include "gradnet.c"
+#include "sm_parameters.c"
 #include "sm_control_loci.c"
 #include "sm_flux_vector.c"
 

@@ -44,7 +44,7 @@ typedef struct {
     double h;              /* Weight of the external position error signal */
 } ObserverOutputs;
 
-/* Flux observer in estimated rotor coordinates (sensorless mode, h = 0) */
+/* Flux observer in estimated rotor coordinates */
 typedef struct {
     SynchronousMachinePars par;
     double k_theta;
@@ -85,6 +85,7 @@ typedef struct {
 
 typedef struct {
     double T_s;
+    int sensorless;
     ReferenceGenerator reference_gen;
     FluxTorqueController flux_torque_ctrl;
     SpeedFluxObserver observer;
@@ -105,6 +106,7 @@ typedef struct {
 typedef struct {
     double complex i_c_ab; /* Converter current in stationary coordinates */
     double u_dc;
+    double theta_M; /* Mechanical rotor angle, used only in the sensored mode */
 } Measurements;
 
 typedef struct {
@@ -118,9 +120,9 @@ typedef struct {
 
 /* Flux-vector controller configuration (FluxVectorControllerCfg). As in motulator,
  * the optional parameters default to None, represented here by NAN. Only the
- * sensorless mode (sensorless=True) with offline reference generation
- * (online_ref=False) and the default PM-flux estimation gain (k_f=None) are
- * supported. The observer gain k_o is given as k_o(w_m) = k_o[0] + k_o[1]*abs(w_m). */
+ * offline reference generation (online_ref=False) and the default PM-flux
+ * estimation gain (k_f=None) are supported. The observer gain k_o is given as
+ * k_o(w_m) = k_o[0] + k_o[1]*abs(w_m). */
 typedef struct {
     double i_s_max;
     double alpha_tau;
@@ -134,6 +136,7 @@ typedef struct {
     double k_mtpv;
     double J;
     double T_s;
+    int sensorless;
 } FluxVectorControllerCfg;
 
 static FluxVectorControllerCfg flux_vector_controller_cfg(double i_s_max);
